@@ -133,8 +133,10 @@ async function mounted(initial: ReturnType<typeof peer>, sessionId: string, conn
     | undefined
   function Probe() {
     const input = { ...base, client: props.peer.client, connState: props.connState }
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Checked subset supplies every executed feedback read; composed unrelated controller fields are unused, as in the toast-owner fixture.
-    const feedbackScope = input as Parameters<typeof useMobileSessionFeedbackCapabilities>[0]
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The checked subset supplies every feedback read; the unknown bridge omits unused composed controller fields, as in the toast-owner fixture.
+    const feedbackScope = input as unknown as Parameters<
+      typeof useMobileSessionFeedbackCapabilities
+    >[0]
     const feedback = useMobileSessionFeedbackCapabilities(feedbackScope)
     const reconciliation = {
       ...input,
@@ -145,8 +147,8 @@ async function mounted(initial: ReturnType<typeof peer>, sessionId: string, conn
       terminalGestureInputInFlightRef: { current: new Set<string>() },
       registerTerminalInventoryRecoveryAction: () => () => {}
     } satisfies Partial<Parameters<typeof useMobileSessionTabReconciliation>[0]>
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Checked subset supplies capability/reset effects; stubbed terminal reconciliation never invokes unrelated callbacks.
-    const reconciliationScope = reconciliation as Parameters<
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The checked subset supplies capability/reset effects; the unknown bridge omits callbacks used only by stubbed terminal reconciliation.
+    const reconciliationScope = reconciliation as unknown as Parameters<
       typeof useMobileSessionTabReconciliation
     >[0]
     useMobileSessionTabReconciliation(reconciliationScope)
