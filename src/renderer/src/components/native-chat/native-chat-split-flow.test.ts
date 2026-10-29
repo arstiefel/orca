@@ -65,7 +65,8 @@ it('Split with terminal targets the chat workspace and drops the pane if the she
   })
   store.setState({ openNewTerminalTabInActiveWorkspace: failingOpenTerminal })
   const source = store.getState().createUnifiedTab(worktreeId, 'agent-session', {
-    agentSessionAgent: 'codex'
+    agentSessionAgent: 'codex',
+    executionHostId: 'runtime:remote-host'
   })
   const target = {
     kind: 'workspace-tab',
@@ -75,7 +76,9 @@ it('Split with terminal targets the chat workspace and drops the pane if the she
   expect(runNativeChatSplitTarget(target, 'right', true)).toBe(true)
   const groupId = store.getState().activeGroupIdByWorktree[worktreeId]
   expect(groupId).not.toBe(source.groupId)
-  expect(activateWorkspace).toHaveBeenCalledWith(worktreeId)
+  expect(activateWorkspace).toHaveBeenCalledWith(worktreeId, {
+    executionHostId: 'runtime:remote-host'
+  })
   expect(failingOpenTerminal).toHaveBeenCalledExactlyOnceWith(groupId)
   expect(launch).not.toHaveBeenCalled()
   await Promise.resolve()

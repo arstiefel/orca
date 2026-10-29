@@ -102,7 +102,13 @@ export function runNativeChatSplitTarget(
       )
       return true
     }
-    if (activateAndRevealWorkspace(source.worktreeId) === false) {
+    const executionHostId = source.tab.executionHostId
+    if (
+      activateAndRevealWorkspace(
+        source.worktreeId,
+        executionHostId ? { executionHostId } : undefined
+      ) === false
+    ) {
       closePaneIfEmpty()
       return false
     }
