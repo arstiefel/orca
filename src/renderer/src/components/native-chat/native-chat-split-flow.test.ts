@@ -52,3 +52,33 @@ it.each(['right', 'down'] as const)(
     expect(store.getState().layoutByWorktree[worktreeId]).toEqual(layout)
   }
 )
+
+it('Split opens a shell in the new pane when the chat setting asks for one', async () => {
+  launch.mockReset()
+  store = createTestStore()
+  const worktreeId = 'folder-workspace'
+  const openTerminal = vi.fn(async () => {})
+  store.setState({
+    settings: { ...store.getState().settings!, nativeChatSplitOpensTerminal: true },
+    openNewTerminalTabInActiveWorkspace: openTerminal
+  })
+  const source = store.getState().createUnifiedTab(worktreeId, 'agent-session', {
+    agentSessionAgent: 'codex'
+  })
+  const target = {
+    kind: 'workspace-tab',
+    unifiedTabId: source.id,
+    groupId: source.groupId
+  } as const
+  expect(runNativeChatSplitTarget(target, 'right')).toBe(true)
+  const groupId = store.getState().activeGroupIdByWorktree[worktreeId]
+  expect(groupId).not.toBe(source.groupId)
+  expect(openTerminal).toHaveBeenCalledExactlyOnceWith(groupId)
+  expect(launch).not.toHaveBeenCalled()
+  // No shell landed, so the empty pane is cleaned up.
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(store.getState().groupsByWorktree[worktreeId]?.map((group) => group.id)).toEqual([
+    source.groupId
+  ])
+})

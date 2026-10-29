@@ -20410,7 +20410,12 @@
         "linkPreviewsTitle": "Link previews",
         "linkPreviewsCopy": "Hovering a web link shows a preview card. Orca fetches the page to build it, so the site can see the request.",
         "linkPreviewsSearchUnfurl": "unfurl",
-        "linkPreviewsSearchHover": "hover card"
+        "linkPreviewsSearchHover": "hover card",
+        "splitOpensTerminalToggleLabel": "Toggle split opens a terminal",
+        "splitOpensTerminalTitle": "Split opens a terminal",
+        "splitOpensTerminalCopy": "Split right and Split down from a chat open a shell beside it instead of a new chat.",
+        "splitOpensTerminalSearchSplit": "split",
+        "splitOpensTerminalSearchShell": "shell"
       }
     },
     "agentChildRow": {

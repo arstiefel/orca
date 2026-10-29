@@ -89,6 +89,12 @@ export function runNativeChatSplitTarget(
   const closePane = (): void => {
     useAppStore.getState().closeEmptyGroup(source.worktreeId, groupId)
   }
+  if (state.settings?.nativeChatSplitOpensTerminal === true) {
+    focusIntent.cancel()
+    // Cleanup is a no-op once the shell's tab lands in the pane.
+    void state.openNewTerminalTabInActiveWorkspace(groupId).then(closePane, closePane)
+    return true
+  }
   // Same launch as New Chat, so the fresh chat opens at once in the new pane.
   const result = launchAgentInNewTab({
     requestId: newAgentLaunchRequestId(),

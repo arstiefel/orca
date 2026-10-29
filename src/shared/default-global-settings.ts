@@ -138,6 +138,7 @@ export function buildDefaultSettings(args: {
     nativeChatQueueFollowUps: true,
     nativeChatInlineVisuals: true,
     nativeChatLinkPreviews: true,
+    nativeChatSplitOpensTerminal: false,
     nativeChatInheritShellEnvironment: true,
     nativeChatShellEnvironmentVariables: [],
     nativeChatSessionOptions: {},
