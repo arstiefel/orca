@@ -173,11 +173,8 @@ export function useBrowserPageAnnotationSend({
   const handleIncludePageDetailsChange = useCallback(
     (include: boolean): void => {
       setIncludePageDetails(include)
-      const openModeId = annotationBannerSendOpen
-        ? annotationBannerSendModeId
-        : annotationTraySendOpen
-          ? annotationTraySendModeId
-          : null
+      const openModeId =
+        annotationBannerSendOpen || annotationTraySendOpen ? activeAgentSendTargetModeId : null
       // The sidebar agent picker holds the prompt it was opened with.
       if (openModeId && sendableAnnotations.length > 0) {
         openAnnotationSendTargetMode(
@@ -187,9 +184,8 @@ export function useBrowserPageAnnotationSend({
       }
     },
     [
-      annotationBannerSendModeId,
+      activeAgentSendTargetModeId,
       annotationBannerSendOpen,
-      annotationTraySendModeId,
       annotationTraySendOpen,
       openAnnotationSendTargetMode,
       sendableAnnotations

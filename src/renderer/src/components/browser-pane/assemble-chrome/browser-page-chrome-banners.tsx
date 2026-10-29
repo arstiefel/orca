@@ -9,7 +9,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { BrowserAnnotationSendMenuContent } from '../annotate/BrowserAnnotationSendMenuContent'
+import {
+  BrowserAnnotationSendMenuContent,
+  browserAnnotationCopyTooltip
+} from '../annotate/BrowserAnnotationSendMenuContent'
 import type { BrowserGrabPayload } from '../../../../../shared/browser-grab-types'
 import type { GrabModeHook } from '../annotate/useGrabMode'
 import { preventAgentSendTargetOutsideDismiss } from '../annotate/prevent-agent-send-target-outside-dismiss'
@@ -194,15 +197,7 @@ export function BrowserPageChromeBanners({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6}>
-                  {includePageDetails
-                    ? translate(
-                        'auto.components.browser.pane.annotate.browser.page.annotation.tray.copyFeedbackWithPageDetails',
-                        'Copy feedback with page details'
-                      )
-                    : translate(
-                        'auto.components.browser.pane.annotate.browser.page.annotation.tray.copyFeedback',
-                        'Copy feedback'
-                      )}
+                  {browserAnnotationCopyTooltip(includePageDetails)}
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
