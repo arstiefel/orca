@@ -13,10 +13,10 @@ export type NativeChatSplitShortcut = {
 }
 
 const SPLIT_SHORTCUTS: readonly [KeybindingActionId, NativeChatSplitShortcut][] = [
-  ['terminal.splitRight', { direction: 'right', opensTerminal: false }],
-  ['terminal.splitDown', { direction: 'down', opensTerminal: false }],
   ['chat.splitTerminalRight', { direction: 'right', opensTerminal: true }],
-  ['chat.splitTerminalDown', { direction: 'down', opensTerminal: true }]
+  ['chat.splitTerminalDown', { direction: 'down', opensTerminal: true }],
+  ['terminal.splitRight', { direction: 'right', opensTerminal: false }],
+  ['terminal.splitDown', { direction: 'down', opensTerminal: false }]
 ]
 
 export function matchNativeChatSplitShortcut(
