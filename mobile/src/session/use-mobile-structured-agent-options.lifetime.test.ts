@@ -22,6 +22,14 @@ import {
   currentValueOf
 } from './use-mobile-structured-agent-options.test-fixture'
 
+function acceptedWrite({ fields }: { fields: Record<string, unknown> }) {
+  const { key, value } = fields
+  if (typeof key !== 'string' || typeof value !== 'string') {
+    throw new Error('expected a recorded option write')
+  }
+  return accepted({ key, value, options: { [key]: value } }, true)
+}
+
 it('keeps actual phone operations and correlated acceptance through a stable-client path migration', async () => {
   const stale = deferred<AgentSessionOptionsResult>()
   let oldReads = 0
@@ -316,20 +324,7 @@ it.each([false, true])(
     })
     expect(view.current().pendingOptionId).toBeNull()
     for (const index of permissionFirst ? [1, 0] : [0, 1]) {
-      await act(async () =>
-        replies[index].resolve(
-          accepted(
-            index === 0
-              ? { key: 'model', value: 'gpt-fast', options: { model: 'gpt-fast' } }
-              : {
-                  key: 'permissionMode',
-                  value: 'full-access',
-                  options: { permissionMode: 'full-access' }
-                },
-            true
-          )
-        )
-      )
+      await act(async () => replies[index].resolve(acceptedWrite(calls[index])))
       expect(view.current().pendingOptionId).toBeNull()
       expect(currentValueOf(view.current().optionSnapshot, 'model')).toBe('gpt-fast')
       expect(currentValueOf(view.current().optionSnapshot, 'permissionMode')).toBe('full-access')
@@ -394,20 +389,7 @@ it('bounds real phone permission projection work with 10 and 100 retained operat
     visits = 0
     for (let index = count - 1; index >= 0; index--) {
       const before = visits
-      await act(async () =>
-        replies[index].resolve(
-          accepted(
-            index === 0
-              ? { key: 'model', value: 'gpt-fast', options: { model: 'gpt-fast' } }
-              : {
-                  key: 'permissionMode',
-                  value: 'full-access',
-                  options: { permissionMode: 'full-access' }
-                },
-            true
-          )
-        )
-      )
+      await act(async () => replies[index].resolve(acceptedWrite(calls[index])))
       expect(view.current().pendingOptionId).toBeNull()
       expect(visits - before).toBeLessThanOrEqual(40)
     }

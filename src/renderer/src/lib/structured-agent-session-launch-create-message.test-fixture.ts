@@ -60,11 +60,52 @@ vi.mock('@/runtime/structured-chat-host-permission', () => ({
   readStructuredChatHostPermissionVerdict: async () => ({ kind: 'allowed' })
 }))
 
+import { useAppStore } from '@/store'
+import { registerStructuredSelectionCatalogStore } from './structured-agent-session-selection-controller'
+import { resetStructuredAgentLaunchRegistryForTests } from './agent-session/launch/structured-agent-session-launch-registry'
+import { resetStructuredAgentLaunchPersistenceForTests } from './agent-session/launch/structured-agent-session-launch-persistence'
+import { resetStructuredAgentSessionSendsForTests } from '@/components/native-chat/structured-agent-session-message-sender'
+import { resetStructuredAgentSessionReadOwnersForTests } from '@/components/native-chat/structured-agent-session-read-owner'
+import { resetHostModelCatalogSnapshotsForTests } from '@/runtime/host-model-catalog-snapshots'
 import { startStructuredAgentLaunch } from './structured-agent-session-launch'
 import { newAgentLaunchRequestId } from './agent-launch-request-id'
 
-import { readNativeChatDraftCache } from '@/components/native-chat/native-chat-draft-cache'
+import {
+  clearNativeChatDraftCacheForTests,
+  readNativeChatDraftCache
+} from '@/components/native-chat/native-chat-draft-cache'
 import { structuredAgentSessionDraftScopeKey } from '@/components/native-chat/native-chat-composer-draft-store'
+
+export function resetCreateMessageFixture() {
+  const restore = registerStructuredSelectionCatalogStore({
+    read: useAppStore.getState,
+    subscribe: useAppStore.subscribe
+  })
+  vi.useFakeTimers()
+  vi.clearAllMocks()
+  layoutOwner.isMain = false
+  localStorage.clear()
+  resetStructuredAgentLaunchRegistryForTests()
+  resetStructuredAgentLaunchPersistenceForTests()
+  resetStructuredAgentSessionSendsForTests()
+  resetStructuredAgentSessionReadOwnersForTests()
+  clearNativeChatDraftCacheForTests()
+  mocks.supports.mockResolvedValue(true)
+  mocks.supportsMode.mockResolvedValue(true)
+  mocks.exactSupport.mockResolvedValue(false)
+  resetHostModelCatalogSnapshotsForTests()
+  mocks.admit.mockResolvedValue({ kind: 'admitted' })
+  mocks.inventory.mockRejectedValue(new Error('an extra inventory read must not gate create'))
+  return restore
+}
+
+export function cleanupCreateMessageFixture(restore?: () => void) {
+  resetStructuredAgentLaunchRegistryForTests()
+  restore?.()
+  resetStructuredAgentSessionSendsForTests()
+  resetStructuredAgentSessionReadOwnersForTests()
+  vi.useRealTimers()
+}
 
 function deferred<T>() {
   return Promise.withResolvers<T>()

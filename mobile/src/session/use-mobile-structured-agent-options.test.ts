@@ -82,70 +82,42 @@ describe('useMobileStructuredAgentOptions fast mode', () => {
     await harness.unmount()
   })
 
-  it('offers no Fast row when the session reports fast mode unsupported', async () => {
-    const client = optionsClient(
-      queuedReads({ ...FAST_OPTIONS, fastModeSupport: { supported: false, reason: 'account' } })
-    )
+  it.each([
+    [
+      'session reports unsupported',
+      { ...FAST_OPTIONS, fastModeSupport: { supported: false, reason: 'account' } }
+    ],
+    ['model capability is unknown', { ...FAST_OPTIONS, models: OPTIONS.models }]
+  ] as const)('offers no Fast row when %s', async (_reason, answer) => {
+    const client = optionsClient(queuedReads(answer))
     const { mutate } = recordingMutate(async () => ({ status: 'rejected' }))
     const harness = await mountOptions({ ...BASE, client: client.client, mutate })
-
-    expect(descriptorFor(harness.current().optionSnapshot, 'fastMode')).toBeUndefined()
-    await harness.unmount()
-  })
-
-  it('offers no Fast row when the model capability is unknown', async () => {
-    const client = optionsClient(
-      queuedReads({
-        ...FAST_OPTIONS,
-        models: OPTIONS.models
-      })
-    )
-    const { mutate } = recordingMutate(async () => ({ status: 'rejected' }))
-    const harness = await mountOptions({ ...BASE, client: client.client, mutate })
-
     expect(descriptorFor(harness.current().optionSnapshot, 'fastMode')).toBeUndefined()
     await harness.unmount()
   })
 })
 
 describe('useMobileStructuredAgentOptions post-write refresh', () => {
-  it('reads options back after an accepted same-fence write and applies the refreshed value', async () => {
-    const client = optionsClient(queuedReads(FAST_OPTIONS, FAST_OPTIONS_ON))
-    // The reply settles the operation; only the query installs the chat's selection.
-    const { mutate } = recordingMutate(async () =>
-      accepted({ key: 'fastMode', value: 'true', options: {} }, true)
-    )
-    const harness = await mountOptions({ ...BASE, client: client.client, mutate })
-
-    expect(client.optionReads()).toBe(1)
-    expect(currentValueOf(harness.current().optionSnapshot, 'fastMode')).toBe(false)
-
-    await act(async () => {
-      await harness.current().setStructuredOption('fastMode', true)
-    })
-    await settle()
-
-    expect(client.optionReads()).toBe(2)
-    expect(currentValueOf(harness.current().optionSnapshot, 'fastMode')).toBe(true)
-    await harness.unmount()
-  })
-
-  it('revalidates an accepted operation even when its reply names an older fence', async () => {
-    const client = optionsClient(queuedReads(FAST_OPTIONS, FAST_OPTIONS_ON))
-    const { mutate } = recordingMutate(async () =>
-      accepted({ key: 'fastMode', value: 'true', options: {} }, false)
-    )
-    const harness = await mountOptions({ ...BASE, client: client.client, mutate })
-
-    await act(async () => {
-      await harness.current().setStructuredOption('fastMode', true)
-    })
-    await settle()
-
-    expect(client.optionReads()).toBe(2)
-    expect(currentValueOf(harness.current().optionSnapshot, 'fastMode')).toBe(true)
-    await harness.unmount()
-  })
+  it.each([true, false])(
+    'revalidates an accepted operation with sameFence=%s',
+    async (sameFence) => {
+      const client = optionsClient(queuedReads(FAST_OPTIONS, FAST_OPTIONS_ON))
+      // The reply settles the operation; only the query installs the chat's selection.
+      const { mutate } = recordingMutate(async () =>
+        accepted({ key: 'fastMode', value: 'true', options: {} }, sameFence)
+      )
+      const harness = await mountOptions({ ...BASE, client: client.client, mutate })
+      expect(client.optionReads()).toBe(1)
+      expect(currentValueOf(harness.current().optionSnapshot, 'fastMode')).toBe(false)
+      await act(async () => {
+        await harness.current().setStructuredOption('fastMode', true)
+      })
+      await settle()
+      expect(client.optionReads()).toBe(2)
+      expect(currentValueOf(harness.current().optionSnapshot, 'fastMode')).toBe(true)
+      await harness.unmount()
+    }
+  )
 })
 
 describe('useMobileStructuredAgentOptions reads', () => {

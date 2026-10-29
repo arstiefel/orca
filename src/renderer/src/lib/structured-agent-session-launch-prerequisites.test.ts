@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import {
   mocks,
-  layoutOwner,
+  resetCreateMessageFixture,
+  cleanupCreateMessageFixture,
   deferred,
   createParams,
   created,
@@ -12,7 +13,6 @@ import {
   refusedOption,
   optionCalls
 } from './structured-agent-session-launch-create-message.test-fixture'
-import { useAppStore } from '@/store'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   holdStructuredAgentSessionLaunchOption,
@@ -20,7 +20,6 @@ import {
   flushStructuredSessionSelectionOptions
 } from './structured-agent-session-launch-options'
 import {
-  registerStructuredSelectionCatalogStore,
   structuredSessionSelectionController,
   forgetStructuredSessionSelection
 } from './structured-agent-session-selection-controller'
@@ -40,40 +39,14 @@ import {
   retryStructuredAgentSessionLaunch,
   getStructuredAgentSessionLaunchLifecycle
 } from './structured-agent-session-launch'
-import { resetHostModelCatalogSnapshotsForTests } from '@/runtime/host-model-catalog-snapshots'
-import { resetStructuredAgentSessionSendsForTests } from '@/components/native-chat/structured-agent-session-message-sender'
-import { resetStructuredAgentSessionReadOwnersForTests } from '@/components/native-chat/structured-agent-session-read-owner'
-import { clearNativeChatDraftCacheForTests } from '@/components/native-chat/native-chat-draft-cache'
 
 let restoreCatalogStore: (() => void) | undefined
 describe('legacy opening action prerequisites through real launch orchestration', () => {
   beforeEach(() => {
-    restoreCatalogStore = registerStructuredSelectionCatalogStore({
-      read: useAppStore.getState,
-      subscribe: useAppStore.subscribe
-    })
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    layoutOwner.isMain = false
-    localStorage.clear()
-    resetStructuredAgentLaunchRegistryForTests()
-    resetStructuredAgentLaunchPersistenceForTests()
-    resetStructuredAgentSessionSendsForTests()
-    resetStructuredAgentSessionReadOwnersForTests()
-    clearNativeChatDraftCacheForTests()
-    mocks.supports.mockResolvedValue(true)
-    mocks.supportsMode.mockResolvedValue(true)
-    mocks.exactSupport.mockResolvedValue(false)
-    resetHostModelCatalogSnapshotsForTests()
-    mocks.admit.mockResolvedValue({ kind: 'admitted' })
-    mocks.inventory.mockRejectedValue(new Error('an extra inventory read must not gate create'))
+    restoreCatalogStore = resetCreateMessageFixture()
   })
   afterEach(() => {
-    resetStructuredAgentLaunchRegistryForTests()
-    restoreCatalogStore?.()
-    resetStructuredAgentSessionSendsForTests()
-    resetStructuredAgentSessionReadOwnersForTests()
-    vi.useRealTimers()
+    cleanupCreateMessageFixture(restoreCatalogStore)
   })
 
   it.each([

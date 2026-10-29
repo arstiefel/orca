@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import {
   mocks,
+  resetCreateMessageFixture,
+  cleanupCreateMessageFixture,
   layoutOwner,
   deferred,
   createParams,
@@ -39,10 +41,7 @@ import {
   holdStructuredAgentSessionLaunchOption,
   structuredLaunchOptionOverlay
 } from './structured-agent-session-launch-options'
-import {
-  recordHostModelCatalogSnapshot,
-  resetHostModelCatalogSnapshotsForTests
-} from '@/runtime/host-model-catalog-snapshots'
+import { recordHostModelCatalogSnapshot } from '@/runtime/host-model-catalog-snapshots'
 import {
   resetStructuredAgentLaunchRegistryForTests,
   getStructuredLaunchStateBySessionId
@@ -56,8 +55,7 @@ import { markStructuredAgentSessionLaunchPublished } from './agent-session/launc
 import { StructuredAgentSessionCreateRefusalError } from './structured-agent-session-launch-errors'
 import {
   getStructuredAgentSessionReadOwner,
-  findStructuredAgentSessionReadOwner,
-  resetStructuredAgentSessionReadOwnersForTests
+  findStructuredAgentSessionReadOwner
 } from '@/components/native-chat/structured-agent-session-read-owner'
 import { resetStructuredAgentSessionSendsForTests } from '@/components/native-chat/structured-agent-session-message-sender'
 import {
@@ -65,40 +63,15 @@ import {
   getStructuredAgentSessionSendNotice
 } from '@/components/native-chat/structured-agent-session-pending-sends'
 import { structuredAgentSessionStopControl } from '../../../shared/structured-agent-session-stop-control'
-import {
-  clearNativeChatDraftCacheForTests,
-  writeNativeChatDraftCache
-} from '@/components/native-chat/native-chat-draft-cache'
+import { writeNativeChatDraftCache } from '@/components/native-chat/native-chat-draft-cache'
 import { structuredAgentSessionDraftScopeKey } from '@/components/native-chat/native-chat-composer-draft-store'
 let restoreCatalogStore: (() => void) | undefined
 describe('the first message owned by create', () => {
   beforeEach(() => {
-    restoreCatalogStore = registerStructuredSelectionCatalogStore({
-      read: useAppStore.getState,
-      subscribe: useAppStore.subscribe
-    })
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    layoutOwner.isMain = false
-    localStorage.clear()
-    resetStructuredAgentLaunchRegistryForTests()
-    resetStructuredAgentLaunchPersistenceForTests()
-    resetStructuredAgentSessionSendsForTests()
-    resetStructuredAgentSessionReadOwnersForTests()
-    clearNativeChatDraftCacheForTests()
-    mocks.supports.mockResolvedValue(true)
-    mocks.supportsMode.mockResolvedValue(true)
-    mocks.exactSupport.mockResolvedValue(false)
-    resetHostModelCatalogSnapshotsForTests()
-    mocks.admit.mockResolvedValue({ kind: 'admitted' })
-    mocks.inventory.mockRejectedValue(new Error('an extra inventory read must not gate create'))
+    restoreCatalogStore = resetCreateMessageFixture()
   })
   afterEach(() => {
-    resetStructuredAgentLaunchRegistryForTests()
-    restoreCatalogStore?.()
-    resetStructuredAgentSessionSendsForTests()
-    resetStructuredAgentSessionReadOwnersForTests()
-    vi.useRealTimers()
+    cleanupCreateMessageFixture(restoreCatalogStore)
   })
 
   it('requires registered authority before inserting a remote selection owner', () => {
