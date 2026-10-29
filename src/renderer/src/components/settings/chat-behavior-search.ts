@@ -46,21 +46,6 @@ export const getChatBehaviorEntriesByKey = createLocalizedCatalog(() => ({
       translate('components.settings.nativeChat.linkPreviewsSearchHover', 'hover card')
     ]
   },
-  splitOpensTerminal: {
-    targetSectionId: 'chat-split-opens-terminal',
-    title: translate(
-      'components.settings.nativeChat.splitOpensTerminalTitle',
-      'Split opens a terminal'
-    ),
-    description: translate(
-      'components.settings.nativeChat.splitOpensTerminalCopy',
-      'Split right and Split down from a chat open a shell beside it instead of a new chat.'
-    ),
-    keywords: [
-      translate('components.settings.nativeChat.splitOpensTerminalSearchSplit', 'split'),
-      translate('components.settings.nativeChat.splitOpensTerminalSearchShell', 'shell')
-    ]
-  },
   shellEnvironment: {
     targetSectionId: 'chat-shell-environment',
     title: translate(

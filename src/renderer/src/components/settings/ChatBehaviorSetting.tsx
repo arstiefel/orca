@@ -41,7 +41,6 @@ export function ChatBehaviorSetting({
     entries.resumeOnRestart,
     ...(hostQueuesMessages ? [entries.queueFollowUps] : []),
     entries.linkPreviews,
-    entries.splitOpensTerminal,
     entries.shellEnvironment
   ]
   if (!forceVisible && !matchesSettingsSearch(query, rows)) {
@@ -50,7 +49,6 @@ export function ChatBehaviorSetting({
   const resumeOnRestartEnabled = settings.nativeChatResumeWorkOnRestart === true
   const queueFollowUpsEnabled = settings.nativeChatQueueFollowUps !== false
   const linkPreviewsEnabled = settings.nativeChatLinkPreviews !== false
-  const splitOpensTerminal = settings.nativeChatSplitOpensTerminal === true
   return (
     <section id="chat-behavior" className="space-y-3">
       <SettingsSubsectionHeader title={getChatBehaviorTitle()} />
@@ -117,25 +115,6 @@ export function ChatBehaviorSetting({
                   'Toggle link previews'
                 )}
                 onChange={() => updateSettings({ nativeChatLinkPreviews: !linkPreviewsEnabled })}
-              />
-            </SearchableSetting>
-            <SearchableSetting
-              {...entries.splitOpensTerminal}
-              id={entries.splitOpensTerminal.targetSectionId}
-              forceVisible={forceVisible}
-              className="max-w-none"
-            >
-              <SettingsSwitchRow
-                label={entries.splitOpensTerminal.title}
-                description={entries.splitOpensTerminal.description}
-                checked={splitOpensTerminal}
-                ariaLabel={translate(
-                  'components.settings.nativeChat.splitOpensTerminalToggleLabel',
-                  'Toggle split opens a terminal'
-                )}
-                onChange={() =>
-                  updateSettings({ nativeChatSplitOpensTerminal: !splitOpensTerminal })
-                }
               />
             </SearchableSetting>
             <SearchableSetting

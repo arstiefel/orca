@@ -3,12 +3,15 @@ import { expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import { createTestStore } from '@/store/slices/store-test-helpers'
 import { createTabsSliceMockApi } from '@/store/slices/tabs-slice-test-harness'
+import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 
 let store: ReturnType<typeof createTestStore>
 const launch = vi.hoisted(() => vi.fn())
 vi.mock('@/store', () => ({ useAppStore: { getState: () => store.getState() } }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 vi.mock('@/lib/launch-agent-in-new-tab', () => ({ launchAgentInNewTab: launch }))
+const activateWorkspace = vi.hoisted(() => vi.fn(() => ({})))
+vi.mock('@/lib/worktree-activation', () => ({ activateAndRevealWorkspace: activateWorkspace }))
 createTabsSliceMockApi()
 
 import { runNativeChatSplitTarget } from './native-chat-layout-actions'
@@ -53,15 +56,12 @@ it.each(['right', 'down'] as const)(
   }
 )
 
-it('Split opens a shell in the new pane when the chat setting asks for one', async () => {
+it('Split with terminal opens a shell in the new pane of the chat workspace', async () => {
   launch.mockReset()
   store = createTestStore()
   const worktreeId = 'folder-workspace'
-  const openTerminal = vi.fn(async () => {})
-  store.setState({
-    settings: { ...store.getState().settings!, nativeChatSplitOpensTerminal: true },
-    openNewTerminalTabInActiveWorkspace: openTerminal
-  })
+  const openTerminalWithoutTab = vi.fn(async () => {})
+  store.setState({ openNewTerminalTabInActiveWorkspace: openTerminalWithoutTab })
   const source = store.getState().createUnifiedTab(worktreeId, 'agent-session', {
     agentSessionAgent: 'codex'
   })
@@ -70,15 +70,40 @@ it('Split opens a shell in the new pane when the chat setting asks for one', asy
     unifiedTabId: source.id,
     groupId: source.groupId
   } as const
-  expect(runNativeChatSplitTarget(target, 'right')).toBe(true)
+  expect(runNativeChatSplitTarget(target, 'right', true)).toBe(true)
   const groupId = store.getState().activeGroupIdByWorktree[worktreeId]
   expect(groupId).not.toBe(source.groupId)
-  expect(openTerminal).toHaveBeenCalledExactlyOnceWith(groupId)
+  expect(activateWorkspace).toHaveBeenCalledWith(worktreeId)
+  expect(openTerminalWithoutTab).toHaveBeenCalledExactlyOnceWith(groupId)
   expect(launch).not.toHaveBeenCalled()
-  // No shell landed, so the empty pane is cleaned up.
   await Promise.resolve()
   await Promise.resolve()
   expect(store.getState().groupsByWorktree[worktreeId]?.map((group) => group.id)).toEqual([
     source.groupId
   ])
+})
+
+it('Split with terminal from the floating chat keeps the shell in the floating workspace', async () => {
+  store = createTestStore()
+  const openTerminal = vi.fn(async () => {})
+  store.setState({ openNewTerminalTabInActiveWorkspace: openTerminal })
+  const source = store.getState().createUnifiedTab(FLOATING_TERMINAL_WORKTREE_ID, 'agent-session', {
+    agentSessionAgent: 'codex'
+  })
+  const target = {
+    kind: 'workspace-tab',
+    unifiedTabId: source.id,
+    groupId: source.groupId
+  } as const
+  expect(runNativeChatSplitTarget(target, 'down', true)).toBe(true)
+  const groupId = store.getState().activeGroupIdByWorktree[FLOATING_TERMINAL_WORKTREE_ID]
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(openTerminal).not.toHaveBeenCalled()
+  expect(
+    store
+      .getState()
+      .unifiedTabsByWorktree[FLOATING_TERMINAL_WORKTREE_ID]?.find((tab) => tab.groupId === groupId)
+      ?.contentType
+  ).toBe('terminal')
 })

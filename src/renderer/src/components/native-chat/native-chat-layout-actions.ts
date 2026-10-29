@@ -4,6 +4,9 @@ import { getAgentLabel } from '@/lib/agent-catalog'
 import type { AppState } from '@/store/types'
 import { useAppStore } from '@/store'
 import { isTuiAgent } from '../../../../shared/tui-agent-config'
+import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
+import { createFloatingWorkspaceTerminalTab } from '@/lib/floating-workspace-tab-creation'
+import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { captureNativeChatComposerFocusIntent } from '@/components/native-chat/use-native-chat-composer-reveal-focus'
@@ -66,7 +69,8 @@ function findSplitSource(
 
 export function runNativeChatSplitTarget(
   target: NativeChatSplitTarget,
-  direction: NativeChatSplitDirection
+  direction: NativeChatSplitDirection,
+  opensTerminal = false
 ): boolean {
   if (target.kind === 'terminal-pane') {
     requestActiveTerminalPaneSplit({
@@ -86,13 +90,26 @@ export function runNativeChatSplitTarget(
     focusIntent.cancel()
     return false
   }
-  const closePane = (): void => {
+  const closePaneIfEmpty = (): void => {
     useAppStore.getState().closeEmptyGroup(source.worktreeId, groupId)
   }
-  if (state.settings?.nativeChatSplitOpensTerminal === true) {
+  if (opensTerminal) {
     focusIntent.cancel()
-    // Cleanup is a no-op once the shell's tab lands in the pane.
-    void state.openNewTerminalTabInActiveWorkspace(groupId).then(closePane, closePane)
+    if (source.worktreeId === FLOATING_TERMINAL_WORKTREE_ID) {
+      void createFloatingWorkspaceTerminalTab(state, undefined, groupId).then(
+        closePaneIfEmpty,
+        closePaneIfEmpty
+      )
+      return true
+    }
+    if (activateAndRevealWorkspace(source.worktreeId) === false) {
+      closePaneIfEmpty()
+      return false
+    }
+    void useAppStore
+      .getState()
+      .openNewTerminalTabInActiveWorkspace(groupId)
+      .then(closePaneIfEmpty, closePaneIfEmpty)
     return true
   }
   // Same launch as New Chat, so the fresh chat opens at once in the new pane.
@@ -106,7 +123,7 @@ export function runNativeChatSplitTarget(
     groupId
   })
   if (!result) {
-    closePane()
+    closePaneIfEmpty()
     toast.error(
       translate(
         'auto.components.tab.bar.QuickLaunchButton.465e432ef1',
@@ -117,7 +134,7 @@ export function runNativeChatSplitTarget(
     return true
   }
   // Settlement cleanup preserves any pane that currently contains a tab.
-  void result.structuredSettlement?.then(closePane, closePane)
+  void result.structuredSettlement?.then(closePaneIfEmpty, closePaneIfEmpty)
   return true
 }
 

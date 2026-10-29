@@ -215,8 +215,6 @@ export type GlobalSettings = GlobalSettingsBase & {
   nativeChatInlineVisuals?: boolean
   /** Hovering a web link in chat fetches the page to preview it; absent means on. GitHub cards ignore this. */
   nativeChatLinkPreviews?: boolean
-  /** Split right/down from a native chat opens a shell instead of a new chat; absent means off. */
-  nativeChatSplitOpensTerminal?: boolean
   /** Structured Codex/Claude chats inherit the login-shell env; off limits it to nativeChatShellEnvironmentVariables plus PATH/locale. */
   nativeChatInheritShellEnvironment?: boolean
   /** Login-shell variable names structured chat inherits while the whole environment is off. */

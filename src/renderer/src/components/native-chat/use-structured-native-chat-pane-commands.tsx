@@ -76,13 +76,13 @@ export function useStructuredNativeChatPaneCommands({
       if (event.repeat) {
         return
       }
-      const direction = matchNativeChatSplitShortcut(event, getShortcutPlatform(), keybindings)
-      if (!direction) {
+      const split = matchNativeChatSplitShortcut(event, getShortcutPlatform(), keybindings)
+      if (!split) {
         return
       }
       let handled = false
       if (terminalPaneActions) {
-        if (direction === 'right') {
+        if (split.direction === 'right') {
           terminalPaneActions.onSplitRight()
         } else {
           terminalPaneActions.onSplitDown()
@@ -91,7 +91,8 @@ export function useStructuredNativeChatPaneCommands({
       } else if (groupId) {
         handled = runNativeChatSplitTarget(
           { kind: 'workspace-tab', unifiedTabId: tabId, groupId },
-          direction
+          split.direction,
+          split.opensTerminal
         )
       }
       if (!handled) {

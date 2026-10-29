@@ -327,13 +327,15 @@ export function NativeChatResolvedView({
       }}
       onKeyDownCapture={(event) => {
         find.onKeyDownCapture(event)
-        const splitDirection = event.repeat
+        const split = event.repeat
           ? null
           : matchNativeChatSplitShortcut(event, getShortcutPlatform(), keybindings)
-        if (splitDirection && contextMenuActions) {
+        if (split && contextMenuActions) {
           event.preventDefault()
           event.stopPropagation()
-          if (splitDirection === 'right') {
+          if (split.opensTerminal && contextMenuActions.onSplitWithTerminal) {
+            contextMenuActions.onSplitWithTerminal(split.direction)
+          } else if (split.direction === 'right') {
             contextMenuActions.onSplitRight()
           } else {
             contextMenuActions.onSplitDown()
