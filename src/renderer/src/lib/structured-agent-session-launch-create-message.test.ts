@@ -103,6 +103,7 @@ describe('the first message owned by create', () => {
         {
           id: 'picked-model',
           label: 'Picked',
+          isDefault: false,
           efforts: [
             { value: 'low', label: 'Low' },
             { value: 'high', label: 'High' }

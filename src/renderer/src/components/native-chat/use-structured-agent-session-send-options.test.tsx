@@ -13,6 +13,7 @@ import {
   applyStructuredAgentSessionOptions,
   createStructuredAgentSessionOptionState
 } from '../../../../shared/structured-agent-session-options'
+import { projectRuntimePermission } from '../../../../shared/structured-agent-session-permission-option'
 import { structuredAgentSessionOptionView } from '../../../../shared/structured-agent-session-option-view'
 import { useStructuredAgentSessionSendOptions } from './use-structured-agent-session-send-options'
 
@@ -52,7 +53,14 @@ function sendOptionsFor(
       { kind: 'new', seedOptions },
       {
         optionStateRef,
-        optionView: (state, seed) => structuredAgentSessionOptionView(state, seed, pending),
+        optionView: (state, seed) => ({
+          ...projectRuntimePermission(
+            structuredAgentSessionOptionView(state, seed, pending),
+            undefined,
+            null
+          ),
+          permissionOwnSupported: null
+        }),
         takesSelection,
         takesSendOptions
       }
@@ -91,7 +99,15 @@ describe('what each composer send carries', () => {
 it('desktop capture freezes only accepted echoed inputs; empty origin differs from legacy absence', () => {
   const state = createStructuredAgentSessionOptionState('claude', CLAUDE_SESSION_OPTION_CATALOG)
   const answer = {
-    models: [{ id: 'opus[1m]', label: 'Opus', efforts: levels('high'), supportsFastMode: true }],
+    models: [
+      {
+        id: 'opus[1m]',
+        label: 'Opus',
+        isDefault: false,
+        efforts: levels('high'),
+        supportsFastMode: true
+      }
+    ],
     fastModeSupport: { supported: true },
     current: {
       model: 'opus[1m]',
@@ -105,7 +121,14 @@ it('desktop capture freezes only accepted echoed inputs; empty origin differs fr
     optionStateRef: {
       current: applyStructuredAgentSessionOptions(state, CLAUDE_SESSION_OPTION_CATALOG, answer)
     },
-    optionView: (current: typeof state) => structuredAgentSessionOptionView(current, undefined, {}),
+    optionView: (current: typeof state) => ({
+      ...projectRuntimePermission(
+        structuredAgentSessionOptionView(current, undefined, {}),
+        undefined,
+        null
+      ),
+      permissionOwnSupported: null
+    }),
     takesSelection: true,
     takesSendOptions: false
   }

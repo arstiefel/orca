@@ -13,7 +13,7 @@ export function captureStructuredExecutionOptions(
   selection?: Readonly<Record<string, string>>
 ): { options: AgentSessionExecutionOptions } | { refusal: AgentSessionWireRefusal } {
   const saved = ctx.persistedOptions ?? {}
-  const candidate =
+  const candidate: Record<string, string> =
     selection === undefined
       ? { ...saved, ...supplied }
       : {

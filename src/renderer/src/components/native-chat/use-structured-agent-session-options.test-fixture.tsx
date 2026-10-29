@@ -250,11 +250,8 @@ export {
   LOCAL_TARGET,
   PAIRED_TARGET,
   FakeRpcCallError,
-  Answers,
   answer,
-  MutateCall,
   mutateWith,
-  RenderProps,
   PROVISIONAL,
   PUBLISHED_UNATTACHED,
   ATTACHED,
@@ -270,3 +267,5 @@ export {
   SEED,
   tick
 }
+
+export type { Answers, MutateCall, RenderProps }

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { vi } from 'vitest'
+import type { ExecutionHostId } from '../../../shared/execution-host'
 import type { AgentJournalSubmission } from '../../../shared/agent-session-journal-types'
 import type { AgentSessionHistoryPage } from '../../../shared/agent-session-wire'
 import {
@@ -214,7 +215,7 @@ export {
 export function legacyAction(
   explicit: Record<string, string> | undefined,
   write: (key: string, value: string) => Promise<unknown>,
-  executionHostId = 'local',
+  executionHostId: ExecutionHostId = 'local',
   agent: 'claude' | 'codex' = 'codex'
 ) {
   const create = deferred<unknown>()

@@ -211,7 +211,7 @@ describe("a chat's model and effort, apart from the defaults filling them in", (
 })
 
 it('bounds exact capture by catalog width at N and 10N', () => {
-  const work = []
+  const work: number[] = []
   for (const count of [10, 100]) {
     let visits = 0
     const models = Array.from({ length: count }, (_, index) => ({

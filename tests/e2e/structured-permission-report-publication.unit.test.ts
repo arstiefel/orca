@@ -148,7 +148,8 @@ function permissionConsumersFor(
           permissionModes: true,
           permissionOwn: true,
           statusFeed: true,
-          coherentModelCatalog: false
+          coherentModelCatalog: false,
+          sendOptions: false
         },
         mutate: phoneWrite
       })

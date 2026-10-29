@@ -1,3 +1,4 @@
+import type { StructuredAgentSessionFirstMessage } from '../../../shared/structured-agent-session-create'
 import { AGENT_JOURNAL_THREAD_SCOPE } from '../../../shared/agent-session-journal-types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computeAgentSessionPayloadFingerprint } from '../../../shared/agent-session-mutation-envelope'
@@ -147,7 +148,13 @@ describe('an opening message created with a model and effort', () => {
   })
 })
 
-it.each([undefined, {}, { model: 'shown-model', effort: 'high', serviceTier: 'default' }])(
+const openingSelections: (Readonly<Record<string, string>> | undefined)[] = [
+  undefined,
+  {},
+  { model: 'shown-model', effort: 'high', serviceTier: 'default' }
+]
+
+it.each(openingSelections)(
   'aliases the real opening echo by body and replays the immutable create selection %j',
   async (selection) => {
     const rest = await createRestTestRig({ idleSweep: { intervalMs: 60_000 } })
@@ -155,7 +162,7 @@ it.each([undefined, {}, { model: 'shown-model', effort: 'high', serviceTier: 'de
       const accepted = Promise.withResolvers<ReturnType<typeof acceptedDispatch>>()
       rest.adapter.dispatch.mockImplementationOnce(() => accepted.promise)
       const saved = { model: 'saved-model', effort: 'low', personality: 'friendly' }
-      const first = {
+      const first: StructuredAgentSessionFirstMessage = {
         clientMessageId: hostTestOperationId(),
         body: hostTestMessage('opening echo'),
         ...(selection !== undefined ? { selection } : {})
@@ -205,7 +212,7 @@ it.each([undefined, {}, { model: 'shown-model', effort: 'high', serviceTier: 'de
         now: HOST_TEST_NOW,
         options: { model: 'new-default', effort: 'medium', personality: 'changed' }
       })
-      const changedFirst = {
+      const changedFirst: StructuredAgentSessionFirstMessage = {
         ...first,
         selection: selection?.model ? {} : { model: 'changed-control' }
       }

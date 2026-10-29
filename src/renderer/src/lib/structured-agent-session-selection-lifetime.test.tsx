@@ -1,4 +1,5 @@
 import { resetHostModelCatalogSnapshotsForTests } from '@/runtime/host-model-catalog-snapshots'
+import type { StructuredAgentSessionMutate } from '@/components/native-chat/use-structured-agent-session-mutate'
 import type { AgentSessionOptionsResult } from '../../../shared/agent-session-wire'
 // @vitest-environment happy-dom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
@@ -28,6 +29,8 @@ import {
   forgetStructuredSessionSelection,
   structuredSessionSelectionController
 } from './structured-agent-session-selection-controller'
+
+const unavailableMutation: StructuredAgentSessionMutate = async () => null
 
 const transport = vi.hoisted(() => ({
   create: vi.fn(),
@@ -159,7 +162,7 @@ it.each([false, true])(
           providerVisible: visible,
           turnId: null,
           unloadedTurnRevisions: undefined,
-          mutate: async () => ({ status: 'rejected' })
+          mutate: unavailableMutation
         }),
       { initialProps: { visible: false } }
     )
@@ -416,7 +419,7 @@ it.each([false, true])(
           turnId: null,
           unloadedTurnRevisions: undefined,
           hostOptionStamp: stamp,
-          mutate: async () => ({ status: 'rejected' })
+          mutate: unavailableMutation
         }),
       { initialProps: { stamp: 'initial', fence: 1 } }
     )

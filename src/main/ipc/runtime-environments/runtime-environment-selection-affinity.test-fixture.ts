@@ -9,9 +9,9 @@ import {
   structuredSessionSelectionController,
   forgetStructuredSessionSelection,
   registerStructuredSelectionCatalogStore
-} from '@/lib/structured-agent-session-selection-controller'
-import { replaceRuntimeEnvironmentRevisions } from '@/runtime/runtime-environment-revision'
-import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+} from '../../../renderer/src/lib/structured-agent-session-selection-controller'
+import { replaceRuntimeEnvironmentRevisions } from '../../../renderer/src/runtime/runtime-environment-revision'
+import { callRuntimeRpc } from '../../../renderer/src/runtime/runtime-rpc-client'
 
 export async function verifyDeferredSelectionAffinity(
   userDataPath: string,

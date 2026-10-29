@@ -2,6 +2,7 @@ import * as selectionOperations from '../../../src/shared/structured-agent-sessi
 import { createElement, StrictMode, useEffect } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
+import { OptionsParams } from '../../../src/shared/rpc-contract/structured-agent-session-params'
 import type { AgentSessionOptionsResult } from '../../../src/shared/agent-session-wire'
 import type { RpcClient } from '../transport/rpc-client'
 import type { StructuredAgentSessionMutate } from './mobile-structured-agent-session-rpc'
@@ -256,24 +257,43 @@ it.each(['current', 'failed-then-wake', 'true-end'] as const)(
       }
     })
     if (schedule === 'true-end') {
+      cause = 'replacement-session-read'
       await view.rerender({ sessionId: 'replacement' })
     }
+    const readsBeforeReply = next.optionReads()
     cause = 'late-result-revalidation'
     await act(async () => reply.resolve({ status: 'rejected' }))
     await expect(picking).resolves.toBe(schedule === 'true-end')
     expect(view.current().pendingOptionId).toBeNull()
     expect(calls).toHaveLength(1)
     expect(next.optionReads()).toBeLessThanOrEqual(schedule === 'current' ? 2 : 3)
-    // Contact may invoke the former reader; generation installs its current successor, and a
-    // queued revalidation may follow the settled result. Each cause has at most one RPC.
+    const requested = next.methods('agentSession.options').map(({ params }, index) => ({
+      ...OptionsParams.parse(params),
+      cause: causes[index]
+    }))
+    expect(requested).toHaveLength(causes.length)
+    // Migration and replacement install different session readers; each trigger issues once.
     for (const reason of [
       'connected-callback',
       'generation-read-effect',
+      'replacement-session-read',
       'late-result-revalidation'
     ]) {
       expect(causes.filter((entry) => entry === reason).length).toBeLessThanOrEqual(1)
     }
     expect(causes).toContain('generation-read-effect')
+    for (const request of requested) {
+      expect(request.sessionId).toBe(
+        request.cause === 'replacement-session-read' ? 'replacement' : BASE.sessionId
+      )
+    }
+    if (schedule === 'true-end') {
+      expect(requested.filter((request) => request.cause === 'replacement-session-read')).toEqual([
+        { sessionId: 'replacement', cause: 'replacement-session-read' }
+      ])
+      expect(next.optionReads()).toBe(readsBeforeReply)
+      expect(causes).not.toContain('late-result-revalidation')
+    }
     expect(next.methods('settings.mutateNativeChatSessionOptions')).toHaveLength(0)
     if (schedule === 'failed-then-wake') {
       expect(currentValueOf(view.current().optionSnapshot, 'model')).toBe('gpt-live')

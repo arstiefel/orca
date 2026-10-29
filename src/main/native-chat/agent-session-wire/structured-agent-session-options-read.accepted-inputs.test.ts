@@ -167,10 +167,17 @@ it.each([false, true])(
       {
         id: 'opus[1m]',
         label: 'Alias',
+        isDefault: false,
         efforts: [{ value: 'high', label: 'High' }],
         serviceTiers: [{ value: 'priority', label: 'Fast' }]
       },
-      { id: 'other', label: 'Other', efforts: [], serviceTiers: [{ value: 'flex', label: 'Flex' }] }
+      {
+        id: 'other',
+        label: 'Other',
+        isDefault: false,
+        efforts: [],
+        serviceTiers: [{ value: 'flex', label: 'Flex' }]
+      }
     ]
     const session = {
       child: { fence: 1 },

@@ -547,7 +547,13 @@ describe('native chat store subscription performance', () => {
 })
 
 it('bounds the actual pick/read/overlay path at 10 and 100 delayed writes without whole-drain joins', async () => {
-  const measurements = []
+  const measurements: {
+    count: number
+    sends: number
+    renders: number
+    visits: number
+    memberships: number
+  }[] = []
   const target = { kind: 'local' } as const
   for (const count of [10, 100]) {
     const controller = createStructuredSessionSelectionController(vi.fn())
