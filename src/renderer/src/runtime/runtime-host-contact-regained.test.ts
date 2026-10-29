@@ -22,7 +22,8 @@ import { clearRuntimeEnvironmentConnectionGenerationsForTests } from '@/store/sl
 import { subscribeRuntimeHostContactRegained } from './runtime-host-contact-regained'
 import {
   structuredSessionSelectionController,
-  forgetStructuredSessionSelection
+  forgetStructuredSessionSelection,
+  registerStructuredSelectionCatalogStore
 } from '@/lib/structured-agent-session-selection-controller'
 import type { PublicKnownRuntimeEnvironment } from '../../../shared/runtime-environments'
 
@@ -80,7 +81,12 @@ function publish(status: RuntimeStatus | null, checkedAt: number): void {
   })
 }
 
+let restoreCatalog: () => void
 beforeEach(() => {
+  restoreCatalog = registerStructuredSelectionCatalogStore({
+    read: useAppStore.getState,
+    subscribe: useAppStore.subscribe
+  })
   clearRuntimeEnvironmentConnectionGenerationsForTests()
   vi.stubGlobal('window', { api: {}, dispatchEvent: vi.fn() })
   useAppStore.setState({ runtimeStatusByEnvironmentId: new Map() })
@@ -88,6 +94,9 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  forgetStructuredSessionSelection('continuity')
+  forgetStructuredSessionSelection('keyless')
+  restoreCatalog()
   vi.unstubAllGlobals()
 })
 

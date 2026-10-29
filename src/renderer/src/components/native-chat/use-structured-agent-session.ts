@@ -102,6 +102,7 @@ export function useStructuredAgentSession(args: StructuredAgentSessionViewArgs) 
     turnId: transportState.turnId,
     unloadedTurnRevisions: state.unloadedTurnRevisions,
     mutate,
+    capturePresentation,
     ...(launch ? { launch } : {})
   })
   const sendOptions = useStructuredAgentSessionSendOptions(sessionId, launch, sendSource)

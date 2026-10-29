@@ -1,4 +1,7 @@
-import type { StructuredAgentSessionSendControl } from '../../../../shared/structured-agent-session-send-mutation'
+import type {
+  StructuredAgentSessionSendControl,
+  StructuredAgentSessionAttachment
+} from '../../../../shared/structured-agent-session-send-mutation'
 import { useStructuredAgentSessionHostCapabilityState } from '@/runtime/structured-agent-session-host-capability'
 import { AGENT_SESSION_SEND_SKILLS_RUNTIME_CAPABILITY } from '../../../../shared/agent-session-create-capabilities'
 import type { StructuredAgentSessionSendRequest } from './structured-agent-session-send-slot'
@@ -7,7 +10,6 @@ import type {
   AgentJournalCursor,
   AgentJournalSubmission
 } from '../../../../shared/agent-session-journal-types'
-import type { StructuredAgentSessionAttachment } from '../../../../shared/structured-agent-session-send-mutation'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import {
   structuredAgentSessionQueueRequest,

@@ -115,11 +115,15 @@ async function mountOptions(props: ProbeProps) {
       })
       await settle()
     },
-    pick: async (mode: string) => {
+    pick: async (mode: string, waitForResult = false) => {
+      let result!: Promise<boolean>
       await act(async () => {
-        void rendered.current?.setStructuredOption('permissionMode', mode)
+        result = rendered.current!.setStructuredOption('permissionMode', mode)
       })
       await settle()
+      if (waitForResult) {
+        return result
+      }
     },
     unmount: () => act(async () => renderer?.unmount())
   }
@@ -136,6 +140,9 @@ describe('the permission pill against a host predating per-chat modes', () => {
     })
     expect(options.permission()).toBe('host')
     expect(options.offered()).toEqual(['host'])
+    vi.mocked(mutate).mockClear()
+    expect(await options.pick('own', true)).toBe(false)
+    expect(mutate).not.toHaveBeenCalled()
     await options.unmount()
   })
 
@@ -159,6 +166,9 @@ describe('the permission pill against a host predating per-chat modes', () => {
       hostAdvertisesPermissionModes: null
     })
     expect(options.permission()).toBeNull()
+    vi.mocked(mutate).mockClear()
+    expect(await options.pick('own', true)).toBe(false)
+    expect(mutate).not.toHaveBeenCalled()
     await options.unmount()
   })
 })

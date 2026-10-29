@@ -216,6 +216,39 @@ describe('a permission pick on this device', () => {
     setLocalRuntimeCapabilitiesForTests(null)
   })
 
+  it('dispatches supported Own reset without locking permission or the next model pick', async () => {
+    setLocalRuntimeCapabilitiesForTests([
+      AGENT_SESSION_PERMISSION_MODES_RUNTIME_CAPABILITY,
+      AGENT_SESSION_PERMISSION_OWN_RUNTIME_CAPABILITY
+    ])
+    optionsAnswering('ask')
+    const { result, unmount } = renderReopened(1)
+    await waitFor(() => expect(permission(result.current.optionSnapshot)).toBe('ask'))
+    const reply = Promise.withResolvers<AgentSessionMutationResult<AgentSessionOptionResult>>()
+    mocks.write.mockReturnValueOnce(reply.promise)
+    let picking!: Promise<boolean>
+    act(() => {
+      picking = result.current.setStructuredOption('permissionMode', 'own')
+    })
+    expect(mocks.write).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        key: 'permissionMode',
+        value: 'own',
+        envelope: expect.objectContaining({ expectedRuntimeFence: 1 })
+      })
+    )
+    expect(result.current.sendSource.optionStateRef.current.pendingId).toBeNull()
+    expect(result.current.optionSnapshot.find((row) => row.id === 'model')?.settable).toBe(true)
+    await act(async () => {
+      reply.resolve(acceptedReply('permissionMode', 'own'))
+      await picking
+    })
+    await expect(picking).resolves.toBe(true)
+    expect(result.current.sendSource.optionStateRef.current.pendingId).toBeNull()
+    expect(result.current.optionSnapshot.find((row) => row.id === 'model')?.settable).toBe(true)
+    unmount()
+  })
+
   it('shows at once and stays pickable while the write waits behind a start', async () => {
     optionsAnswering('ask', 'auto')
     const first = Promise.withResolvers<AgentSessionMutationResult<AgentSessionOptionResult>>()

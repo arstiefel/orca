@@ -227,12 +227,18 @@ describe('MobileNativeChatSessionOptionPickers', () => {
         act(() => {
           pick = view.current().setStructuredOption('permissionMode', value)
         })
+        expect(calls[index]?.fields).toEqual({ key: 'permissionMode', value })
+        expect(view.current().pendingOptionId).toBeNull()
+        await act(async () => renderer!.update(createElement(ActualPickers)))
+        expect(findAllByHostType(renderer!.root, 'ActivityIndicator')).toHaveLength(0)
+        expect(rowByText('GPT Fast').props.accessibilityState?.disabled).toBe(false)
         await act(async () =>
           replies[index].resolve(
             accepted({ key: 'permissionMode', value, options: { permissionMode: value } }, true)
           )
         )
         await expect(pick).resolves.toBe(true)
+        expect(view.current().pendingOptionId).toBeNull()
         await act(async () => renderer!.update(createElement(ActualPickers)))
         expect(findAllByHostType(renderer!.root, 'ActivityIndicator')).toHaveLength(0)
         expect(rowByText('GPT Fast').props.accessibilityState?.disabled).toBe(false)

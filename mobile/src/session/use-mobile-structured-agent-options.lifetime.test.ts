@@ -241,7 +241,7 @@ it.each(['current', 'failed-then-wake', 'true-end'] as const)(
       await client.migrateTo(next.client, 'relay')
       cause = 'generation-read-effect'
     })
-    const current = {
+    const current: AgentSessionOptionsResult = {
       ...OPTIONS,
       current: { model: 'gpt-live', effort: 'high' },
       conversationCommands: ['compact']
@@ -260,7 +260,7 @@ it.each(['current', 'failed-then-wake', 'true-end'] as const)(
     }
     cause = 'late-result-revalidation'
     await act(async () => reply.resolve({ status: 'rejected' }))
-    await expect(picking).resolves.toBe(false)
+    await expect(picking).resolves.toBe(schedule === 'true-end')
     expect(view.current().pendingOptionId).toBeNull()
     expect(calls).toHaveLength(1)
     expect(next.optionReads()).toBeLessThanOrEqual(schedule === 'current' ? 2 : 3)

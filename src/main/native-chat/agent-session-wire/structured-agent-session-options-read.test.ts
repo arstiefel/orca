@@ -1,5 +1,8 @@
 import { CODEX_SESSION_OPTION_CATALOG } from '../../../shared/agent-session-option-catalog-claude-codex'
-import { structuredAgentSessionMessageSelection } from '../../../shared/structured-agent-session-option-view'
+import {
+  structuredAgentSessionMessageSelection,
+  structuredAgentSessionSendSelection
+} from '../../../shared/structured-agent-session-option-view'
 import { agentSessionRecordFixture } from '../agent-session-record-test-fixture'
 import { startCodexTurn } from '../../codex/codex-structured-turn-start'
 import { readLiveCodexSessionOptions } from '../../codex/codex-structured-session-options'
@@ -19,7 +22,6 @@ import {
   applyStructuredAgentSessionOptions,
   createStructuredAgentSessionOptionState
 } from '../../../shared/structured-agent-session-options'
-import { structuredAgentSessionSendSelection } from '../../../shared/structured-agent-session-option-view'
 import type { StructuredAgentSessionLiveOptions } from './structured-agent-session-adapter'
 
 import { describe, expect, it, vi } from 'vitest'

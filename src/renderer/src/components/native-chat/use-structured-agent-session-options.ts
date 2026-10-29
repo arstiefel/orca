@@ -24,6 +24,7 @@ export type { StructuredAgentSessionOptionsArgs } from './structured-agent-sessi
 export function useStructuredAgentSessionOptions(args: StructuredAgentSessionOptionsArgs) {
   const { agent, fence, launch, providerVisible, sessionId, target, transportEnabled, turnId } =
     args
+  const capturePresentation = args.capturePresentation
   const providerStarting = args.providerStarting ?? false
   const newLaunch = launch?.kind === 'new'
   const launchSeedOptions = launch?.seedOptions
@@ -141,6 +142,7 @@ export function useStructuredAgentSessionOptions(args: StructuredAgentSessionOpt
         return applied !== null
       }
       const context = structuredAgentSessionOptionPicks(view, { [id]: encoded })[0]?.modelId ?? null
+      const presents = capturePresentation?.()
       const operation = controller.issue(id, encoded, context)
       updateOptionState((current) => ({
         ...current,
@@ -152,7 +154,11 @@ export function useStructuredAgentSessionOptions(args: StructuredAgentSessionOpt
         ...current,
         pendingId: controller.pendingId()
       }))
-      if (outcome.kind === 'refused' && outcome.failure) {
+      if (
+        (outcome.kind === 'refused' || outcome.kind === 'unknown') &&
+        outcome.failure &&
+        (presents?.() ?? true)
+      ) {
         toast.error(agentSessionWriteFailureText(outcome.failure, 'option'))
       }
       rereadOptions()
@@ -160,6 +166,7 @@ export function useStructuredAgentSessionOptions(args: StructuredAgentSessionOpt
     },
     [
       controller,
+      capturePresentation,
       acceptsPicks,
       fence,
       launch?.explicitOptions,

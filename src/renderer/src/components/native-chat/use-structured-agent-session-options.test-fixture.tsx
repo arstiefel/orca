@@ -3,6 +3,7 @@
 import { renderHook } from '@testing-library/react'
 import { vi } from 'vitest'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import type * as LaunchOptions from '@/lib/structured-agent-session-launch-options'
 import type * as HostCapability from '@/runtime/structured-agent-session-host-capability'
 import type { SelectionOutcome } from '../../../../shared/structured-agent-session-selection-operations'
 
@@ -62,7 +63,11 @@ vi.mock('./native-chat-session-option-settings-write', () => ({
 vi.mock('@/lib/structured-agent-session-launch-options', async () => {
   const { structuredSessionSelectionController } =
     await import('@/lib/structured-agent-session-selection-controller')
+  const actual = await vi.importActual<typeof LaunchOptions>(
+    '@/lib/structured-agent-session-launch-options'
+  )
   return {
+    ...actual,
     holdStructuredAgentSessionLaunchOption: (...args: Parameters<typeof mocks.hold>) => {
       const reply = mocks.hold(...args)
       if (!reply) {
@@ -76,21 +81,6 @@ vi.mock('@/lib/structured-agent-session-launch-options', async () => {
       )
       void reply.then((outcome) => controller.settle(operation, outcome))
       return operation.result
-    },
-    setStructuredSessionSelectionOption: async (
-      _target: unknown,
-      _session: string,
-      _fence: number,
-      key: string,
-      value: string
-    ) => {
-      const result = await mocks.pick('agentSession.setOption', 'agentSession.setOption', {
-        key,
-        value
-      })
-      return result
-        ? { kind: 'accepted', options: result.options ?? { [key]: value } }
-        : { kind: 'unknown' }
     },
     getStructuredAgentSessionLaunchSelection: () => null
   }
@@ -115,15 +105,21 @@ type Answers = {
 }
 
 function answer(answers: Answers): void {
-  mocks.call.mockImplementation((_target: unknown, method: string) => {
-    if (method === 'agentSession.options' && answers.options) {
-      return answers.options()
+  mocks.call.mockImplementation(
+    async (_target: unknown, method: string, params: { key: string; value: string }) => {
+      if (method === 'agentSession.setOption') {
+        const value = await mocks.pick(method, method, { key: params.key, value: params.value })
+        return value ? { ok: true, value } : Promise.reject(new Error('Unconfirmed option write'))
+      }
+      if (method === 'agentSession.options' && answers.options) {
+        return answers.options()
+      }
+      if (method === 'agentSession.modelCatalog' && answers.modelCatalog) {
+        return answers.modelCatalog()
+      }
+      return new Promise(() => {})
     }
-    if (method === 'agentSession.modelCatalog' && answers.modelCatalog) {
-      return answers.modelCatalog()
-    }
-    return new Promise(() => {})
-  })
+  )
 }
 
 type MutateCall = (...args: unknown[]) => Promise<unknown>
