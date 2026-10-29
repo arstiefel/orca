@@ -1,3 +1,4 @@
+import { registerStructuredSelectionCatalogStore } from '@/lib/structured-agent-session-selection-controller'
 import { canOfferHttpLinkGroupAction } from '@/lib/http-link-in-group-availability'
 import { create, type StateCreator } from 'zustand'
 import type { AppState } from './types'
@@ -149,6 +150,10 @@ export const useAppStore = create<AppState>()(
   )
 )
 
+registerStructuredSelectionCatalogStore({
+  read: useAppStore.getState,
+  subscribe: useAppStore.subscribe
+})
 registerHttpLinkStoreAccessor(() => useAppStore.getState(), useAppStore.subscribe)
 registerHttpLinkGroupActionAvailability((request) =>
   canOfferHttpLinkGroupAction(useAppStore.getState(), request)

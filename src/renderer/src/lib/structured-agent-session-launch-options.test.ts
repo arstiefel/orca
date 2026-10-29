@@ -1,7 +1,8 @@
+import { useAppStore } from '@/store'
 // @vitest-environment happy-dom
 
 import type * as LaunchErrors from '@/lib/structured-agent-session-launch-errors'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-session-contracts'
 import type { StructuredAgentSessionLaunchIntent } from '@/lib/launch-structured-agent-session'
 import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-result'
@@ -63,6 +64,7 @@ vi.mock('@/runtime/structured-agent-session-client', () => ({
 vi.mock('@/store', () => ({
   useAppStore: {
     getState: () => ({
+      runtimeEnvironmentCatalogHydrated: true,
       unifiedTabsByWorktree: {},
       seedNativeChatLaunchDraft: vi.fn(),
       clearNativeChatLaunchDraft: vi.fn()
@@ -101,6 +103,7 @@ import {
 } from './agent-session/launch/structured-agent-session-launch-registry'
 import { markStructuredAgentSessionLaunchPublished } from './agent-session/launch/structured-agent-session-launch-publication'
 import {
+  registerStructuredSelectionCatalogStore,
   structuredSessionSelectionController,
   forgetStructuredSessionSelection
 } from './structured-agent-session-selection-controller'
@@ -183,10 +186,20 @@ async function settle(): Promise<void> {
   }
 }
 
+let restoreCatalogStore: (() => void) | undefined
+afterEach(() => {
+  resetStructuredAgentLaunchRegistryForTests()
+  forgetStructuredSessionSelection(SESSION_ID)
+  restoreCatalogStore?.()
+})
 describe('picks made while a chat launches', () => {
   let setOptionReplies: Deferred<unknown>[]
 
   beforeEach(() => {
+    restoreCatalogStore = registerStructuredSelectionCatalogStore({
+      read: useAppStore.getState,
+      subscribe: useAppStore.subscribe
+    })
     forgetStructuredSessionSelection(SESSION_ID)
     vi.clearAllMocks()
     localStorage.clear()

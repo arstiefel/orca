@@ -1,18 +1,16 @@
+import * as selectionOperations from '../../../src/shared/structured-agent-session-selection-operations'
 import { createElement, StrictMode, useEffect } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import type { AgentSessionOptionsResult } from '../../../src/shared/agent-session-wire'
 import type { RpcClient } from '../transport/rpc-client'
-import type {
-  SelectionOperation,
-  StructuredSessionSelectionController
-} from '../../../src/shared/structured-agent-session-selection-operations'
 import type { StructuredAgentSessionMutate } from './mobile-structured-agent-session-rpc'
 import { createStableLogicalRpcClient } from '../transport/stable-logical-rpc-client'
 import { requestStructuredAgentSessionMutation } from './mobile-structured-agent-session-rpc'
 import { useMobileStructuredSelectionController } from './use-mobile-structured-selection-controller'
 import {
   settle,
+  accepted,
   OPTIONS,
   BASE,
   deferred,
@@ -60,7 +58,7 @@ it('keeps actual phone operations and correlated acceptance through a stable-cli
         ? { status: 'unknown' }
         : { status: 'rejected' }
   }
-  const view = await mountOptions({ ...BASE, client, mutate })
+  const view = await mountOptions({ ...BASE, client, mutate, sendSelection: true })
   let pick!: Promise<boolean>
   act(() => {
     pick = view.current().setStructuredOption('model', 'gpt-fast')
@@ -73,6 +71,7 @@ it('keeps actual phone operations and correlated acceptance through a stable-cli
   await act(async () => stale.resolve({ ...OPTIONS, conversationCommands: ['compact'] }))
   expect(view.current().conversationCommands).toEqual([])
   expect(currentValueOf(view.current().optionSnapshot, 'model')).toBe('gpt-fast')
+  expect(view.current().sendSelection()).toMatchObject({ selection: { model: 'gpt-fast' } })
   await act(async () =>
     reply.resolve(rpcSuccess({ ok: true, value: { options: { model: 'gpt-fast' } } }))
   )
@@ -93,10 +92,10 @@ it.each(['session', 'client'] as const)(
   async (boundary) => {
     const firstClient = optionsClient(queuedReads(OPTIONS))
     const replacement = optionsClient(queuedReads(OPTIONS))
-    let current!: StructuredSessionSelectionController
+    let current!: selectionOperations.StructuredSessionSelectionController
     const setups: {
-      controller: StructuredSessionSelectionController
-      operation: SelectionOperation
+      controller: selectionOperations.StructuredSessionSelectionController
+      operation: selectionOperations.SelectionOperation
     }[] = []
     let cleanups = 0
     function Scope({ sessionId, client }: { sessionId: string; client: RpcClient }) {
@@ -173,8 +172,15 @@ it.each(['session', 'client'] as const)(
 
 it('reads the new physical path after an idle connected-to-connected migration without an operation wake', async () => {
   const old = optionsClient(queuedReads(OPTIONS))
-  const answer = deferred<AgentSessionOptionsResult>()
-  const next = optionsClient(() => answer.promise)
+  const answers: ReturnType<typeof deferred<AgentSessionOptionsResult>>[] = []
+  let cause = 'connected-callback'
+  const causes: string[] = []
+  const next = optionsClient(() => {
+    causes.push(cause)
+    const answer = deferred<AgentSessionOptionsResult>()
+    answers.push(answer)
+    return answer.promise
+  })
   const client = createStableLogicalRpcClient(old.client, 'lan')
   const { mutate } = recordingMutate(async () => ({ status: 'rejected' }))
   const view = await mountOptions({ ...BASE, client, mutate })
@@ -182,13 +188,235 @@ it('reads the new physical path after an idle connected-to-connected migration w
   expect(view.current().conversationCommands).toEqual([])
   await act(async () => {
     await client.migrateTo(next.client, 'relay')
+    cause = 'generation-read-effect'
   })
   await settle()
-  expect(next.optionReads()).toBe(1)
-  await act(async () => answer.resolve({ ...OPTIONS, conversationCommands: ['compact'] }))
+  expect(next.optionReads()).toBeGreaterThanOrEqual(1)
+  expect(next.optionReads()).toBeLessThanOrEqual(2)
+  // The contact callback can start one read before React installs the generation-keyed reader.
+  expect(causes.filter((entry) => entry === 'connected-callback').length).toBeLessThanOrEqual(1)
+  expect(causes.filter((entry) => entry === 'generation-read-effect')).toHaveLength(1)
+  await act(async () => {
+    for (const answer of answers) {
+      answer.resolve({ ...OPTIONS, conversationCommands: ['compact'] })
+    }
+  })
   await settle()
   expect(view.current().conversationCommands).toEqual(['compact'])
   expect(next.methods('agentSession.setOption')).toHaveLength(0)
   await view.unmount()
   client.close()
+})
+
+it.each(['current', 'failed-then-wake', 'true-end'] as const)(
+  'settles a late refusal after a physical reset without losing progress (%s)',
+  async (schedule) => {
+    const old = optionsClient(queuedReads(OPTIONS))
+    const reads: ReturnType<typeof Promise.withResolvers<AgentSessionOptionsResult>>[] = []
+    let cause = 'connected-callback'
+    const causes: string[] = []
+    const next = optionsClient(() => {
+      causes.push(cause)
+      const read = Promise.withResolvers<AgentSessionOptionsResult>()
+      reads.push(read)
+      return read.promise
+    })
+    const client = createStableLogicalRpcClient(old.client, 'lan')
+    const reply = deferred<{ status: 'rejected' }>()
+    const { calls, mutate } = recordingMutate(() => reply.promise)
+    const view = await mountOptions({ ...BASE, client, mutate, sendSelection: true })
+    let picking!: Promise<boolean>
+    act(() => {
+      picking = view.current().setStructuredOption('model', 'gpt-fast')
+    })
+    await act(async () => {
+      await client.migrateTo(next.client, 'relay')
+      cause = 'generation-read-effect'
+    })
+    const current = {
+      ...OPTIONS,
+      current: { model: 'gpt-live', effort: 'high' },
+      conversationCommands: ['compact']
+    }
+    await act(async () => {
+      for (const read of reads) {
+        if (schedule === 'failed-then-wake') {
+          read.reject(new Error('offline'))
+        } else {
+          read.resolve(current)
+        }
+      }
+    })
+    if (schedule === 'true-end') {
+      await view.rerender({ sessionId: 'replacement' })
+    }
+    cause = 'late-result-revalidation'
+    await act(async () => reply.resolve({ status: 'rejected' }))
+    await expect(picking).resolves.toBe(false)
+    expect(view.current().pendingOptionId).toBeNull()
+    expect(calls).toHaveLength(1)
+    expect(next.optionReads()).toBeLessThanOrEqual(schedule === 'current' ? 2 : 3)
+    // Contact may invoke the former reader; generation installs its current successor, and a
+    // queued revalidation may follow the settled result. Each cause has at most one RPC.
+    for (const reason of [
+      'connected-callback',
+      'generation-read-effect',
+      'late-result-revalidation'
+    ]) {
+      expect(causes.filter((entry) => entry === reason).length).toBeLessThanOrEqual(1)
+    }
+    expect(causes).toContain('generation-read-effect')
+    expect(next.methods('settings.mutateNativeChatSessionOptions')).toHaveLength(0)
+    if (schedule === 'failed-then-wake') {
+      expect(currentValueOf(view.current().optionSnapshot, 'model')).toBe('gpt-live')
+      const beforeWake = reads.length
+      cause = 'status-wake'
+      await view.rerender({ optionStamp: 'legitimate-status-wake' })
+      expect(reads.length).toBe(beforeWake + 1)
+      await act(async () => reads.at(-1)!.resolve(current))
+    }
+    if (schedule !== 'true-end') {
+      expect(currentValueOf(view.current().optionSnapshot, 'model')).toBe('gpt-live')
+      expect(view.current().conversationCommands).toEqual(['compact'])
+      expect(view.current().sendSelection()).toMatchObject({
+        selection: { model: 'gpt-live', effort: 'high' }
+      })
+    } else {
+      expect(view.current().sendSelection()).toEqual({ selection: {} })
+    }
+    await view.unmount()
+    client.close()
+  }
+)
+
+it.each([false, true])(
+  'never promotes permission or older model busy state after settlement (permission first=%s)',
+  async (permissionFirst) => {
+    const idle = deferred<AgentSessionOptionsResult>()
+    let reads = 0
+    const rpc = optionsClient(() =>
+      ++reads === 1
+        ? Promise.resolve({ ...OPTIONS, current: { ...OPTIONS.current, permissionMode: 'ask' } })
+        : idle.promise
+    )
+    const replies = [
+      deferred<ReturnType<typeof accepted>>(),
+      deferred<ReturnType<typeof accepted>>()
+    ]
+    const { calls, mutate } = recordingMutate((index) => replies[index].promise)
+    const view = await mountOptions({ ...BASE, client: rpc.client, mutate, sendSelection: true })
+    act(() => {
+      void view.current().setStructuredOption('model', 'gpt-fast')
+    })
+    await act(async () =>
+      expect(await view.current().setStructuredOption('model', 'gpt-live')).toBe(false)
+    )
+    act(() => {
+      void view.current().setStructuredOption('permissionMode', 'full-access')
+    })
+    expect(view.current().pendingOptionId).toBeNull()
+    for (const index of permissionFirst ? [1, 0] : [0, 1]) {
+      await act(async () =>
+        replies[index].resolve(
+          accepted(
+            index === 0
+              ? { key: 'model', value: 'gpt-fast', options: { model: 'gpt-fast' } }
+              : {
+                  key: 'permissionMode',
+                  value: 'full-access',
+                  options: { permissionMode: 'full-access' }
+                },
+            true
+          )
+        )
+      )
+      expect(view.current().pendingOptionId).toBeNull()
+      expect(currentValueOf(view.current().optionSnapshot, 'model')).toBe('gpt-fast')
+      expect(currentValueOf(view.current().optionSnapshot, 'permissionMode')).toBe('full-access')
+      expect(view.current().sendSelection()).toMatchObject({ selection: { model: 'gpt-fast' } })
+    }
+    expect(calls.map((call) => call.fields)).toEqual([
+      { key: 'model', value: 'gpt-fast' },
+      { key: 'permissionMode', value: 'full-access' }
+    ])
+    await view.unmount()
+  }
+)
+
+it('bounds real phone permission projection work with 10 and 100 retained operations', async () => {
+  const measurements: number[] = []
+  for (const count of [10, 100]) {
+    const factory = vi.spyOn(selectionOperations, 'createStructuredSessionSelectionController')
+    const blocked = deferred<AgentSessionOptionsResult>()
+    let reads = 0
+    const rpc = optionsClient(() =>
+      ++reads === 1
+        ? Promise.resolve({ ...OPTIONS, current: { ...OPTIONS.current, permissionMode: 'ask' } })
+        : blocked.promise
+    )
+    const replies = Array.from({ length: count }, () => deferred<ReturnType<typeof accepted>>())
+    const { calls, mutate } = recordingMutate((index) => replies[index].promise)
+    const view = await mountOptions({ ...BASE, client: rpc.client, mutate })
+    const result = factory.mock.results.at(-1)!
+    if (result.type !== 'return') {
+      throw new Error('real hook did not construct its owner')
+    }
+    const controller = result.value
+    const issue = vi.spyOn(controller, 'issue')
+    let visits = 0
+    for (let index = 0; index < count; index++) {
+      const before = visits
+      act(() => {
+        void view.current().setStructuredOption('permissionMode', index % 2 ? 'ask' : 'full-access')
+      })
+      expect(visits - before).toBeLessThanOrEqual(40)
+      const issued = issue.mock.results.at(-1)!
+      if (issued.type !== 'return') {
+        throw new Error('permission not admitted')
+      }
+      const operation = issued.value
+      for (const key of ['identity', 'key', 'transmitted', 'outcome'] as const) {
+        let value = operation[key]
+        Object.defineProperty(operation, key, {
+          configurable: true,
+          get() {
+            visits++
+            return value
+          },
+          set(next) {
+            value = next
+          }
+        })
+      }
+    }
+    const issueVisits = visits
+    expect(issueVisits).toBeLessThanOrEqual(40 * count)
+    visits = 0
+    for (let index = count - 1; index >= 0; index--) {
+      const before = visits
+      await act(async () =>
+        replies[index].resolve(
+          accepted(
+            index === 0
+              ? { key: 'model', value: 'gpt-fast', options: { model: 'gpt-fast' } }
+              : {
+                  key: 'permissionMode',
+                  value: 'full-access',
+                  options: { permissionMode: 'full-access' }
+                },
+            true
+          )
+        )
+      )
+      expect(view.current().pendingOptionId).toBeNull()
+      expect(visits - before).toBeLessThanOrEqual(40)
+    }
+    expect(calls).toHaveLength(count)
+    expect(visits).toBeLessThanOrEqual(40 * count)
+    measurements.push(issueVisits + visits)
+    await view.unmount()
+    issue.mockRestore()
+    factory.mockRestore()
+  }
+  expect(measurements[1]).toBeLessThanOrEqual(measurements[0] * 11)
 })

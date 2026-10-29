@@ -11,6 +11,7 @@ import {
   draft,
   startLegacyActionLaunch
 } from './structured-agent-session-launch-create-message.test-fixture'
+import { useAppStore } from '@/store'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -27,7 +28,11 @@ import {
   retryStructuredAgentSessionLaunch,
   getStructuredAgentSessionLaunchLifecycle
 } from './structured-agent-session-launch'
-import { structuredSessionSelectionController } from './structured-agent-session-selection-controller'
+import {
+  registerStructuredSelectionCatalogStore,
+  structuredSessionSelectionController,
+  forgetStructuredSessionSelection
+} from './structured-agent-session-selection-controller'
 import { setRuntimeEnvironmentConnectionGenerationForTests } from '@/store/slices/runtime-status-connection-generation'
 import { replaceRuntimeEnvironmentRevisions } from '@/runtime/runtime-environment-revision'
 import {
@@ -65,8 +70,13 @@ import {
   writeNativeChatDraftCache
 } from '@/components/native-chat/native-chat-draft-cache'
 import { structuredAgentSessionDraftScopeKey } from '@/components/native-chat/native-chat-composer-draft-store'
+let restoreCatalogStore: (() => void) | undefined
 describe('the first message owned by create', () => {
   beforeEach(() => {
+    restoreCatalogStore = registerStructuredSelectionCatalogStore({
+      read: useAppStore.getState,
+      subscribe: useAppStore.subscribe
+    })
     vi.useFakeTimers()
     vi.clearAllMocks()
     layoutOwner.isMain = false
@@ -84,9 +94,30 @@ describe('the first message owned by create', () => {
     mocks.inventory.mockRejectedValue(new Error('an extra inventory read must not gate create'))
   })
   afterEach(() => {
+    resetStructuredAgentLaunchRegistryForTests()
+    restoreCatalogStore?.()
     resetStructuredAgentSessionSendsForTests()
     resetStructuredAgentSessionReadOwnersForTests()
     vi.useRealTimers()
+  })
+
+  it('requires registered authority before inserting a remote selection owner', () => {
+    restoreCatalogStore?.()
+    const remote = { kind: 'environment', environmentId: 'uncomposed-test-store' } as const
+    expect(() => structuredSessionSelectionController(remote, 'uncomposed', 'codex')).toThrow(
+      'must be registered'
+    )
+    const restore = registerStructuredSelectionCatalogStore({
+      read: useAppStore.getState,
+      subscribe: useAppStore.subscribe
+    })
+    try {
+      const owner = structuredSessionSelectionController(remote, 'uncomposed', 'codex')
+      expect(structuredSessionSelectionController(remote, 'uncomposed', 'codex')).toBe(owner)
+    } finally {
+      forgetStructuredSessionSelection('uncomposed', remote)
+      restore()
+    }
   })
 
   it('freezes the message and held options in create and publishes without another read or send', async () => {

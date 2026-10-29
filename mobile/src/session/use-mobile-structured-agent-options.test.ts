@@ -8,6 +8,7 @@ import type {
 import type { StructuredAgentSessionMutationResult } from './mobile-structured-agent-session-rpc'
 import { rememberMobileCreatedStructuredSession } from './mobile-created-structured-sessions'
 import {
+  type Controller,
   settle,
   OPTIONS,
   FAST_OPTIONS,
@@ -526,7 +527,8 @@ describe('useMobileStructuredAgentOptions after a lost pick reply', () => {
     const pendingRead = deferred<AgentSessionOptionsResult>()
     const reads = [
       () => Promise.resolve(answer('m1', 'priority')),
-      () => Promise.reject(new Error('offline')),
+      () => Promise.reject(new Error('terminal reconciliation offline')),
+      () => Promise.reject(new Error('status reconciliation offline')),
       () => pendingRead.promise,
       () => Promise.resolve(answer('m2', 'flex'))
     ]
@@ -545,7 +547,8 @@ describe('useMobileStructuredAgentOptions after a lost pick reply', () => {
     expect(speed(harness.current())).toEqual({ value: 'default', choices: ['default', 'flex'] })
     expect(harness.current().pendingOptionId).toBeNull()
 
-    // The status-triggered read fails: nothing changes.
+    expect(client.optionReads()).toBe(2) // The terminal wake consumed its failed query.
+    // The status-triggered read fails independently: nothing changes.
     await harness.rerender({ optionStamp: 'status-1' })
     expect(speed(harness.current())?.value).toBe('default')
 
@@ -565,7 +568,7 @@ describe('useMobileStructuredAgentOptions after a lost pick reply', () => {
     await harness.rerender({ optionStamp: 'status-3' })
     expect(currentValueOf(harness.current().optionSnapshot, 'model')).toBe('m2')
     expect(speed(harness.current())?.value).toBe('flex')
-    expect(client.optionReads()).toBe(5)
+    expect(client.optionReads()).toBe(6)
     await harness.unmount()
   })
 })

@@ -2,8 +2,7 @@ import { agentSessionConversationView } from '../../../shared/agent-session-conv
 import { isFloatingWorkspaceId } from '../../../shared/floating-workspace-worktree'
 import { isAgentSessionCreateAdmissionRefusal } from '../../../shared/agent-session-definitive-refusal'
 import type { StructuredAgentSessionFirstMessage } from '../../../shared/structured-agent-session-create'
-import { agentSessionSendFields } from '../../../shared/structured-agent-session-send-mutation'
-import { computeAgentSessionPayloadFingerprint } from '../../../shared/agent-session-mutation-envelope'
+import { agentSessionSendBodyFingerprint } from '../../../shared/structured-agent-session-send-mutation'
 import {
   refuse,
   type AgentSessionAttachResult,
@@ -213,11 +212,7 @@ async function foundConversation(
           },
           {
             ...first,
-            payloadFingerprint: computeAgentSessionPayloadFingerprint({
-              method: 'agentSession.send',
-              sessionId,
-              fields: agentSessionSendFields(first)
-            }),
+            payloadFingerprint: agentSessionSendBodyFingerprint(sessionId, first.body),
             origin: 'client',
             source: { kind: 'user' },
             ...(first.selection === undefined

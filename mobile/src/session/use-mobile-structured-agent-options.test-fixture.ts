@@ -130,7 +130,7 @@ function accepted(
   return { status: 'accepted', value, sameFence }
 }
 
-type Controller = ReturnType<typeof useMobileStructuredAgentOptions>
+export type Controller = ReturnType<typeof useMobileStructuredAgentOptions>
 
 type ProbeProps = {
   agent: string | null
@@ -142,6 +142,7 @@ type ProbeProps = {
   turnId?: string | null
   sendSelection?: boolean
   coherentCatalog?: boolean
+  permissionOwn?: boolean
   onRender: (controller: Controller) => void
 }
 
@@ -157,6 +158,8 @@ function Probe(props: ProbeProps): null {
     ...(props.optionStamp ? { optionStamp: props.optionStamp } : {}),
     hostSupport: {
       permissionModes: true,
+      permissionOwn: props.permissionOwn,
+      sendOptions: false,
       statusFeed: false,
       sendSelection: props.sendSelection,
       coherentModelCatalog: props.coherentCatalog

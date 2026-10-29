@@ -1,9 +1,15 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentSessionOptionsResult } from '../../../src/shared/agent-session-wire'
+import type {
+  AgentSessionOptionResult,
+  AgentSessionOptionsResult
+} from '../../../src/shared/agent-session-wire'
 import type { RpcClient } from '../transport/rpc-client'
-import type { StructuredAgentSessionMutate } from './mobile-structured-agent-session-rpc'
+import type {
+  StructuredAgentSessionMutate,
+  StructuredAgentSessionMutationResult
+} from './mobile-structured-agent-session-rpc'
 import { useMobileStructuredAgentOptions } from './use-mobile-structured-agent-options'
 
 function optionsFor(permissionMode?: string): AgentSessionOptionsResult {
@@ -71,6 +77,7 @@ async function mountOptions(props: ProbeProps) {
         probe.hostAdvertisesPermissionModes === null
           ? null
           : {
+              sendOptions: false,
               permissionModes: probe.hostAdvertisesPermissionModes ?? true,
               permissionOwn: probe.permissionOwn,
               statusFeed: false
@@ -89,6 +96,7 @@ async function mountOptions(props: ProbeProps) {
   })
   await settle()
   return {
+    pending: () => rendered.current?.pendingOptionId,
     offered: () => {
       const entry = rendered.current?.optionSnapshot.find(
         (descriptor) => descriptor.id === 'permissionMode'
@@ -218,14 +226,39 @@ describe('the permission mode on the phone', () => {
   })
 
   it('shows a pick at once while its write waits behind a start, and stays pickable', async () => {
-    vi.mocked(mutate).mockImplementation(() => new Promise(() => {}))
+    const first =
+      Promise.withResolvers<StructuredAgentSessionMutationResult<AgentSessionOptionResult>>()
+    const second =
+      Promise.withResolvers<StructuredAgentSessionMutationResult<AgentSessionOptionResult>>()
+    vi.mocked(mutate)
+      .mockReset()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
     const rpc = optionsClient('ask')
     const options = await mountOptions({ client: rpc.client, fence: 1, optionStamp: '' })
+    const send = rpc.client.sendRequest
+    rpc.client.sendRequest = (method, params, config) =>
+      method === 'agentSession.options' ? new Promise(() => {}) : send(method, params, config)
     await options.pick('full-access')
     expect(options.permission()).toBe('full-access')
     await options.pick('auto')
     expect(options.permission()).toBe('auto')
     expect(vi.mocked(mutate)).toHaveBeenCalledTimes(2)
+    for (const [reply, value] of [
+      [second, 'auto'],
+      [first, 'full-access']
+    ] as const) {
+      await act(async () =>
+        reply.resolve({
+          status: 'accepted',
+          value: { key: 'permissionMode', value, options: { permissionMode: value } },
+          sameFence: true
+        })
+      )
+      expect(options.pending()).toBeNull()
+      expect(options.offered()).toContain('auto')
+      expect(options.permission()).toBe('auto')
+    }
     await options.unmount()
   })
 

@@ -101,15 +101,15 @@ export function useMobileStructuredOptionState(args: {
     () => contextRef.current.key === contextKey && contextRef.current.client === client,
     [contextKey, client]
   )
-  const optionIdentityRef = useRef({ agent, sessionId, client, clientGeneration })
+  const optionIdentityRef = useRef({ agent, sessionId, client, controller })
   useEffect(() => {
     const previousIdentity = optionIdentityRef.current
     const sameSession =
       previousIdentity.agent === agent &&
       previousIdentity.sessionId === sessionId &&
       previousIdentity.client === client &&
-      previousIdentity.clientGeneration === clientGeneration
-    optionIdentityRef.current = { agent, sessionId, client, clientGeneration }
+      previousIdentity.controller === controller
+    optionIdentityRef.current = { agent, sessionId, client, controller }
     const previous = optionStateRef.current
     const seeded = createStructuredAgentSessionOptionState(agent ?? 'codex', optionCatalog)
     // Retain account answers across fence changes instead of reviving placeholders.
@@ -130,7 +130,17 @@ export function useMobileStructuredOptionState(args: {
     optionStateRef.current = next
     activeOptionRecordRef.current = next.record
     setOptionState(next)
-  }, [agent, enabled, fence, optionCatalog, sessionId, contextKey, client, clientGeneration])
+  }, [
+    agent,
+    enabled,
+    fence,
+    optionCatalog,
+    sessionId,
+    contextKey,
+    client,
+    clientGeneration,
+    controller
+  ])
 
   const [conversationSupport, setConversationSupport] = useState<{
     sessionId: string
@@ -220,6 +230,7 @@ export function useMobileStructuredOptionState(args: {
     }
   }, [
     client,
+    clientGeneration,
     newLaunch,
     enabled,
     optionCatalog,

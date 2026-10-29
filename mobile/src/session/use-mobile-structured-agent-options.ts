@@ -148,7 +148,12 @@ export function useMobileStructuredAgentOptions(args: {
       const view = structuredAgentSessionOptionView(currentState, undefined, controller.overlay())
       const pickState = {
         ...view,
-        pendingId: providerStarting || !controller.isPending(id) ? null : id
+        pendingId:
+          providerStarting ||
+          id === AGENT_CHAT_PERMISSION_MODE_OPTION_ID ||
+          !controller.isPending(id)
+            ? null
+            : id
       }
       const encoded = encodeStructuredAgentSessionOptionValue(id, value)
       if (
@@ -205,7 +210,10 @@ export function useMobileStructuredAgentOptions(args: {
       if (activeOptionRecordRef.current === targetRecord) {
         updateOptionState((current) => ({
           ...current,
-          pendingId: controller.pendingId()
+          pendingId:
+            current.pendingId !== null && controller.isPending(current.pendingId)
+              ? current.pendingId
+              : null
         }))
         if (outcome.kind === 'refused') {
           reread()

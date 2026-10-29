@@ -1,3 +1,5 @@
+import { resetHostModelCatalogSnapshotsForTests } from '@/runtime/host-model-catalog-snapshots'
+import type { AgentSessionOptionsResult } from '../../../shared/agent-session-wire'
 // @vitest-environment happy-dom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -22,6 +24,7 @@ import { listRuntimeSessionHostsForStartup } from '@/app-shell/startup-runtime-s
 import { structuredAgentSessionTargetForTab } from '@/runtime/structured-agent-session-owner'
 import type { PublicKnownRuntimeEnvironment } from '../../../shared/runtime-environments'
 import {
+  registerStructuredSelectionCatalogStore,
   forgetStructuredSessionSelection,
   structuredSessionSelectionController
 } from './structured-agent-session-selection-controller'
@@ -363,3 +366,171 @@ it.each(['present', 'initially-absent', 'already-hydrated'] as const)(
     }
   }
 )
+
+it.each([false, true])(
+  'retains the answered desktop descriptor and capture across contact, not true end (pending=%s)',
+  async (pending) => {
+    resetHostModelCatalogSnapshotsForTests()
+    useAppStore.getState().setRuntimeEnvironments([environment(1)])
+    publish('answered-runtime-1', 1)
+    const answer: AgentSessionOptionsResult = {
+      models: ['gpt-5.5', 'gpt-5.4'].map((id) => ({
+        id,
+        label: id,
+        isDefault: false,
+        efforts: []
+      })),
+      current: {
+        model: 'gpt-5.5',
+        permissionMode: 'own',
+        reportedPermissionMode: 'full-access',
+        acceptedInputSources: { model: 'saved' }
+      }
+    }
+    const reads: ReturnType<typeof Promise.withResolvers<AgentSessionOptionsResult>>[] = []
+    const write = Promise.withResolvers<unknown>()
+    transport.call.mockImplementation((_target, method) => {
+      if (method === 'agentSession.setOption') {
+        return write.promise
+      }
+      if (method === 'agentSession.modelCatalog') {
+        return Promise.resolve({ origin: 'probe', models: answer.models, fetchedAt: 1 })
+      }
+      if (method !== 'agentSession.options') {
+        return new Promise(() => {})
+      }
+      const read = Promise.withResolvers<AgentSessionOptionsResult>()
+      reads.push(read)
+      return read.promise
+    })
+    const hook = renderHook(
+      ({ stamp, fence }) =>
+        useStructuredAgentSessionOptions({
+          agent: 'codex',
+          sessionId,
+          target,
+          fence,
+          transportEnabled: true,
+          isVisible: true,
+          providerVisible: true,
+          turnId: null,
+          unloadedTurnRevisions: undefined,
+          hostOptionStamp: stamp,
+          mutate: async () => ({ status: 'rejected' })
+        }),
+      { initialProps: { stamp: 'initial', fence: 1 } }
+    )
+    const owner = structuredSessionSelectionController(target, sessionId, 'codex')
+    await waitFor(() => expect(reads).toHaveLength(1))
+    await act(async () => reads[0].resolve(answer))
+    const descriptor = (id: string) =>
+      hook.result.current.optionSnapshot.find((row) => row.id === id)
+    const capture = () => {
+      const source = hook.result.current.sendSource
+      return structuredAgentSessionMessageSelection(
+        source.optionView(source.optionStateRef.current, undefined)
+      )
+    }
+    expect(descriptor('model')?.kind).toMatchObject({ currentValue: 'gpt-5.5' })
+    expect(descriptor('permissionMode')).toMatchObject({
+      description: 'Full access',
+      settable: true
+    })
+    let picked: Promise<boolean> | undefined
+    if (pending) {
+      act(() => {
+        picked = hook.result.current.setStructuredOption('model', 'gpt-5.4')
+      })
+    }
+    hook.rerender({ stamp: 'old-read', fence: 1 })
+    await waitFor(() => expect(reads).toHaveLength(2))
+    act(() => publish('answered-runtime-2', 2))
+    await waitFor(() => expect(reads.length).toBeGreaterThanOrEqual(3))
+    expect(structuredSessionSelectionController(target, sessionId, 'codex')).toBe(owner)
+    const model = pending ? 'gpt-5.4' : 'gpt-5.5'
+    expect(descriptor('model')?.kind).toMatchObject({ currentValue: model })
+    expect(capture()).toEqual({ model })
+    expect(hook.result.current.sendSource.optionStateRef.current.acceptedInputSources).toEqual({
+      model: 'saved'
+    })
+    expect(descriptor('permissionMode')).toMatchObject({
+      description: 'Permissions',
+      settable: false
+    })
+    await act(async () =>
+      reads[1].resolve({
+        ...answer,
+        conversationCommands: ['compact'],
+        current: { model: 'stale' }
+      })
+    )
+    expect(hook.result.current.conversationCommands).toEqual([])
+    if (pending) {
+      await act(async () => write.resolve({ ok: true, value: { options: { model } } }))
+      await expect(picked).resolves.toBe(true)
+      expect(owner.captureRead()).toHaveLength(1)
+    }
+    await act(async () =>
+      reads[2].resolve({ ...answer, current: { model: 'gpt-5.5', acceptedInputSources: {} } })
+    )
+    if (pending) {
+      await waitFor(() => expect(reads).toHaveLength(4))
+      expect(owner.captureRead()).toHaveLength(1)
+    }
+    if (reads[3]) {
+      await act(async () =>
+        reads[3].resolve({ ...answer, current: { model: 'gpt-5.5', acceptedInputSources: {} } })
+      )
+    }
+    await waitFor(() =>
+      expect(hook.result.current.sendSource.optionStateRef.current.acceptedInputSources).toEqual({})
+    )
+    expect(owner.captureRead()).toEqual([])
+    expect(descriptor('model')?.kind).toMatchObject({ currentValue: 'gpt-5.5' })
+    expect(capture()).toEqual({})
+    act(() => forgetStructuredSessionSelection(sessionId, target))
+    hook.rerender({ stamp: 'new-owner', fence: 2 })
+    expect(structuredSessionSelectionController(target, sessionId, 'codex')).not.toBe(owner)
+    await waitFor(() =>
+      expect(hook.result.current.sendSource.optionStateRef.current.optionsAnswerPresent).not.toBe(
+        true
+      )
+    )
+    expect(capture()).toEqual({})
+    await expect(owner.request(async () => 'unsafe')).rejects.toThrow('retired')
+  }
+)
+
+it('releases the actual first-publication observer when its owner ends before publication', async () => {
+  useAppStore.getState().setRuntimeEnvironments([])
+  useAppStore.setState({ runtimeEnvironmentCatalogHydrated: false })
+  const released = vi.fn()
+  const restore = registerStructuredSelectionCatalogStore({
+    read: useAppStore.getState,
+    subscribe(listener) {
+      const stop = useAppStore.subscribe(listener)
+      return () => {
+        released()
+        stop()
+      }
+    }
+  })
+  try {
+    const owner = structuredSessionSelectionController(target, sessionId, 'codex')
+    const pick = owner.issue('model', 'gpt-5.4', null)
+    forgetStructuredSessionSelection(sessionId, target)
+    await expect(pick.result).resolves.toEqual({ kind: 'superseded' })
+    expect(released).toHaveBeenCalledTimes(1)
+    useAppStore.getState().setRuntimeEnvironments([environment(1)])
+    expect(released).toHaveBeenCalledTimes(1)
+    await expect(owner.request(async () => 'unsafe')).rejects.toThrow('retired')
+    const replacement = structuredSessionSelectionController(target, sessionId, 'codex')
+    expect(replacement).not.toBe(owner)
+    await expect(replacement.request(async (options) => options)).resolves.toEqual({
+      expectedEnvironmentPairingRevision: 1
+    })
+  } finally {
+    forgetStructuredSessionSelection(sessionId, target)
+    restore()
+  }
+})

@@ -133,12 +133,14 @@ export function useStructuredAgentSessionOptionState(args: {
     [newLaunch, optionCatalog, coherentCatalog]
   )
   const host = target.kind === 'local' ? 'local' : target.environmentId
-  const optionIdentity = JSON.stringify([identity, host, authority])
-  const optionIdentityRef = useRef(optionIdentity)
+  const optionIdentity = JSON.stringify([identity, host])
+  const optionIdentityRef = useRef({ identity: optionIdentity, controller })
   useEffect(() => {
     const previous = optionStateRef.current
-    const sameSession = optionIdentityRef.current === optionIdentity
-    optionIdentityRef.current = optionIdentity
+    const sameSession =
+      optionIdentityRef.current.identity === optionIdentity &&
+      optionIdentityRef.current.controller === controller
+    optionIdentityRef.current = { identity: optionIdentity, controller }
     const launch = firstFrameLaunch.current
     const seeded = firstFrameOptionState(agent, launch.target, launch)
     // Retain saved picks/account listings across same-session restarts until the starting provider can be read.
@@ -157,7 +159,7 @@ export function useStructuredAgentSessionOptionState(args: {
     optionStateRef.current = next
     activeOptionRecordRef.current = next.record
     setOptionState(next)
-  }, [agent, fence, optionIdentity, contextKey])
+  }, [agent, fence, optionIdentity, contextKey, authority, controller])
 
   const readEpoch = useRef(0)
   const optionsReadRef = useRef<CoalescedPollRunner | null>(null)

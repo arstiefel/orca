@@ -25,6 +25,7 @@ export type SelectionOperation = {
   model: string | null
   transmitted: boolean
   outcome?: SelectionOutcome
+  request?: Promise<SelectionOutcome>
   result: Promise<SelectionOutcome>
   resolve: (outcome: SelectionOutcome) => void
   previousPending?: SelectionOperation
@@ -114,6 +115,25 @@ export function createStructuredSessionSelectionController(
     }
     notify()
   }
+  const transmit = (
+    operation: SelectionOperation,
+    send: (operation: SelectionOperation) => Promise<SelectionOutcome>
+  ): Promise<SelectionOutcome> => {
+    if (!isCurrent() || operation.outcome || operation.transmitted) {
+      return operation.request ?? operation.result
+    }
+    operation.transmitted = true
+    inFlight.add(operation.result)
+    void operation.result.then(() => inFlight.delete(operation.result))
+    const request = (async () => send(operation))()
+    operation.request = request
+    void request.then(
+      (outcome) => settle(operation, outcome),
+      () => settle(operation, { kind: 'unknown' })
+    )
+    notify()
+    return request
+  }
   return {
     subscribe: (listener: () => void) => {
       listeners.add(listener)
@@ -180,6 +200,8 @@ export function createStructuredSessionSelectionController(
         ])
       )
     },
+    current: (key: string) => operations.get(latest.get(key) ?? -1),
+    transmit,
     pending(): SelectionOperation[] {
       return [...operations.values()].filter((op) => !op.outcome)
     },
@@ -227,16 +249,7 @@ export function createStructuredSessionSelectionController(
       const unsent = currentOperations().filter((op) => !op.transmitted && !op.outcome)
       unsent.sort((a, b) => OPTION_ORDER.indexOf(a.key) - OPTION_ORDER.indexOf(b.key))
       for (const operation of unsent) {
-        if (operation.outcome || operation.transmitted) {
-          continue
-        }
-        operation.transmitted = true
-        inFlight.add(operation.result)
-        void operation.result.then(() => inFlight.delete(operation.result))
-        void (async () => {
-          settle(operation, await send(operation))
-        })().catch(() => settle(operation, { kind: 'unknown' }))
-        notify()
+        void transmit(operation, send)
       }
     },
     async drain(): Promise<void> {

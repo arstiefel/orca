@@ -5,7 +5,6 @@ import {
   getRuntimeEnvironmentRevision,
   resolveContinuedRuntimeEnvironmentRevision
 } from '@/runtime/runtime-environment-revision'
-import { useAppStore } from '@/store'
 import { getRuntimeEnvironmentConnectionGeneration } from '@/store/slices/runtime-status'
 import {
   createStructuredSessionSelectionController,
@@ -14,6 +13,22 @@ import {
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import type { AgentType } from '../../../shared/agent-status-types'
 import { enqueueSessionOptionSettingsWrite } from '@/components/native-chat/native-chat-session-option-settings-write'
+
+type SelectionCatalogState = { runtimeEnvironmentCatalogHydrated: boolean }
+type SelectionCatalogStore = {
+  read: () => SelectionCatalogState
+  subscribe: (listener: (state: SelectionCatalogState) => void) => () => void
+}
+let catalogStore: SelectionCatalogStore | undefined
+
+// Cleanup imports from store slices must not construct the app store.
+export function registerStructuredSelectionCatalogStore(store: SelectionCatalogStore): () => void {
+  const previous = catalogStore
+  catalogStore = store
+  return () => {
+    catalogStore = previous
+  }
+}
 
 export function structuredSessionSelectionAuthority(target: RuntimeClientTarget): string {
   return target.kind === 'local'
@@ -25,6 +40,7 @@ export function structuredSessionSelectionAuthority(target: RuntimeClientTarget)
 }
 type SelectionRequestOptions = { expectedEnvironmentPairingRevision?: number }
 type SessionSelectionController = StructuredSessionSelectionController & {
+  isCurrent(): boolean
   request<T>(perform: (options: SelectionRequestOptions) => Promise<T>): Promise<T>
 }
 const controllers = new Map<
@@ -50,6 +66,10 @@ export function structuredSessionSelectionController(
   if (existing) {
     return existing.controller
   }
+  const store = target.kind === 'environment' ? catalogStore : undefined
+  if (target.kind === 'environment' && !store) {
+    throw new Error('Selection catalog store must be registered before remote acquisition.')
+  }
   let originalRevision =
     target.kind === 'environment' ? getRuntimeEnvironmentRevision(target.environmentId) : undefined
   const isCurrent = () => controllers.get(key)?.controller === controller
@@ -64,6 +84,7 @@ export function structuredSessionSelectionController(
         })
         .catch(() => undefined)
     }, isCurrent),
+    isCurrent,
     async request(perform) {
       if (!isCurrent()) {
         throw new Error('Conversation selection owner retired.')
@@ -96,8 +117,8 @@ export function structuredSessionSelectionController(
     originalRevision: () => originalRevision,
     release: () => release()
   })
-  if (target.kind === 'environment' && !useAppStore.getState().runtimeEnvironmentCatalogHydrated) {
-    release = useAppStore.subscribe((state) => {
+  if (store && !store.read().runtimeEnvironmentCatalogHydrated) {
+    release = store.subscribe((state) => {
       if (state.runtimeEnvironmentCatalogHydrated) {
         originalRevision = getRuntimeEnvironmentRevision(host)
         release()

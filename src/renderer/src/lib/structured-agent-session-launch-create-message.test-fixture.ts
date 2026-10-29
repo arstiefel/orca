@@ -4,6 +4,7 @@ import type { AgentJournalSubmission } from '../../../shared/agent-session-journ
 import type { AgentSessionHistoryPage } from '../../../shared/agent-session-wire'
 import {
   CreateIntentParams,
+  SetOptionParams,
   SendParams
 } from '../../../shared/rpc-contract/structured-agent-session-params'
 
@@ -44,6 +45,7 @@ vi.mock('@/runtime/structured-session-tab-inventory', () => ({
 vi.mock('@/store', () => ({
   useAppStore: {
     getState: () => ({
+      runtimeEnvironmentCatalogHydrated: true,
       settings: mocks.settings,
       unifiedTabsByWorktree: {},
       groupsByWorktree: {},
@@ -59,7 +61,6 @@ vi.mock('@/runtime/structured-chat-host-permission', () => ({
 }))
 
 import { startStructuredAgentLaunch } from './structured-agent-session-launch'
-
 import { newAgentLaunchRequestId } from './agent-launch-request-id'
 
 import { readNativeChatDraftCache } from '@/components/native-chat/native-chat-draft-cache'
@@ -168,3 +169,56 @@ export {
   draft,
   startLegacyActionLaunch
 }
+
+export function legacyAction(
+  explicit: Record<string, string> | undefined,
+  write: (key: string, value: string) => Promise<unknown>,
+  executionHostId = 'local',
+  agent: 'claude' | 'codex' = 'codex'
+) {
+  const create = deferred<unknown>()
+  mocks.supports.mockResolvedValue(false)
+  mocks.call.mockImplementation(async (_target, method, params) => {
+    if (method === 'agentSession.create') {
+      return create.promise
+    }
+    if (method === 'agentSession.setOption') {
+      const { key, value } = SetOptionParams.parse(params)
+      return write(key, value)
+    }
+    if (method === 'agentSession.history') {
+      return { ok: true, page: { ...created().value.page, fence: 2 } }
+    }
+    const send = SendParams.parse(params)
+    return {
+      ok: true,
+      value: {
+        clientMessageId: send.envelope.clientOperationId,
+        submission: submission(send.envelope.clientOperationId)
+      }
+    }
+  })
+  const launch = startStructuredAgentLaunch('workspace-1', agent, {
+    requestId: newAgentLaunchRequestId(),
+    executionHostId,
+    prompt: 'opening text',
+    ...(explicit ? { launchOptions: explicit } : {}),
+    ...(executionHostId !== 'local' ? { hostSeedOptions: { model: 'gpt-5.5' } } : {})
+  })
+  mocks.inventory.mockResolvedValue([
+    { worktree: 'workspace-1', tabs: [{ type: 'agent-session', sessionId: launch.sessionId }] }
+  ])
+  return { launch, create }
+}
+export const acceptedOption = (key: string, value: string) => ({
+  ok: true,
+  value: { key, value, options: { [key]: value } }
+})
+export const refusedOption = {
+  ok: false,
+  refusal: { code: 'agent_session_operation_invalid', details: { reason: 'optionRejected' } }
+}
+export const optionCalls = () =>
+  mocks.call.mock.calls
+    .filter(([, method]) => method === 'agentSession.setOption')
+    .map(([, , params]) => SetOptionParams.parse(params))

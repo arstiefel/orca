@@ -15,7 +15,7 @@ import { useHostModelCatalogUpgrade } from './use-host-model-catalog-upgrade'
 import { useStructuredAgentSessionOptionState } from './use-structured-agent-session-option-state'
 import { agentSessionWriteFailureText } from './agent-session-write-notice-text'
 import {
-  setStructuredSessionSelectionOption,
+  flushStructuredSessionSelectionOptions,
   holdStructuredAgentSessionLaunchOption
 } from '@/lib/structured-agent-session-launch-options'
 
@@ -104,7 +104,12 @@ export function useStructuredAgentSessionOptions(args: StructuredAgentSessionOpt
       const view = optionView(optionStateRef.current, launchSeedOptions, launch?.explicitOptions)
       const pickState = {
         ...view,
-        pendingId: providerStarting || !controller.isPending(id) ? null : id
+        pendingId:
+          providerStarting ||
+          id === AGENT_CHAT_PERMISSION_MODE_OPTION_ID ||
+          !controller.isPending(id)
+            ? null
+            : id
       }
       const encoded = encodeStructuredAgentSessionOptionValue(id, value)
       if (
@@ -141,18 +146,7 @@ export function useStructuredAgentSessionOptions(args: StructuredAgentSessionOpt
         ...current,
         pendingId: providerStarting || id === AGENT_CHAT_PERMISSION_MODE_OPTION_ID ? null : id
       }))
-      void controller.flush((pick) =>
-        controller.request((options) =>
-          setStructuredSessionSelectionOption(
-            target,
-            sessionId,
-            fence,
-            pick.key,
-            pick.value,
-            options
-          )
-        )
-      )
+      void flushStructuredSessionSelectionOptions(target, sessionId, fence, controller)
       const outcome = await operation.result
       updateOptionState((current) => ({
         ...current,
