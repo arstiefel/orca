@@ -106,10 +106,7 @@ export function runNativeChatSplitTarget(
       closePaneIfEmpty()
       return false
     }
-    void useAppStore
-      .getState()
-      .openNewTerminalTabInActiveWorkspace(groupId)
-      .then(closePaneIfEmpty, closePaneIfEmpty)
+    void useAppStore.getState().openNewTerminalTabInActiveWorkspace(groupId).catch(closePaneIfEmpty)
     return true
   }
   // Same launch as New Chat, so the fresh chat opens at once in the new pane.

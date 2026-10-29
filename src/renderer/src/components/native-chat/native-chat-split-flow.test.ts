@@ -56,12 +56,14 @@ it.each(['right', 'down'] as const)(
   }
 )
 
-it('Split with terminal opens a shell in the new pane of the chat workspace', async () => {
+it('Split with terminal targets the chat workspace and drops the pane if the shell fails', async () => {
   launch.mockReset()
   store = createTestStore()
   const worktreeId = 'folder-workspace'
-  const openTerminalWithoutTab = vi.fn(async () => {})
-  store.setState({ openNewTerminalTabInActiveWorkspace: openTerminalWithoutTab })
+  const failingOpenTerminal = vi.fn(async () => {
+    throw new Error('host unreachable')
+  })
+  store.setState({ openNewTerminalTabInActiveWorkspace: failingOpenTerminal })
   const source = store.getState().createUnifiedTab(worktreeId, 'agent-session', {
     agentSessionAgent: 'codex'
   })
@@ -74,7 +76,7 @@ it('Split with terminal opens a shell in the new pane of the chat workspace', as
   const groupId = store.getState().activeGroupIdByWorktree[worktreeId]
   expect(groupId).not.toBe(source.groupId)
   expect(activateWorkspace).toHaveBeenCalledWith(worktreeId)
-  expect(openTerminalWithoutTab).toHaveBeenCalledExactlyOnceWith(groupId)
+  expect(failingOpenTerminal).toHaveBeenCalledExactlyOnceWith(groupId)
   expect(launch).not.toHaveBeenCalled()
   await Promise.resolve()
   await Promise.resolve()
