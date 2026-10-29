@@ -756,8 +756,14 @@ final class Provider {
         }
         let modifiers = try KeyMap.parseModifiers(params["modifiers"]?.string)
         let foreground = isForegroundRequest(params)
+        if foreground {
+            recoverWindow(snapshot.app, windowId: snapshot.windowId, windowBounds: snapshot.windowBounds)
+        }
         if let elementIndex = try optionalInteger(params, "elementIndex") {
             let record = try element(snapshot, elementIndex)
+            if !foreground {
+                try requireBackgroundClickAllowed(BackgroundInputTransport.classifyPointerHit(record.element))
+            }
             if modifiers.isEmpty,
                count <= 1,
                button.hasAccessibilityAction,
@@ -1381,6 +1387,10 @@ private func withTransportErrors<T>(_ body: () throws -> T) throws -> T {
             throw ProviderError.coded("app_not_found", "the target app quit before input was delivered")
         case .eventCreationFailed:
             throw ProviderError.coded("accessibility_error", "failed to create input event")
+        case .targetWindowNotKey:
+            throw ProviderError.coded("background_unavailable", "background input cannot change the key window of the active app; retry with --restore-window to target this window explicitly")
+        case let .focusRecordFailed(status):
+            throw ProviderError.coded("window_not_focused", "background key-window focus record failed (status \(status)); input may already have been delivered, so inspect current state before retrying")
         }
     }
 }
@@ -1398,9 +1408,7 @@ private func clickPointer(
         return
     }
     let hit = BackgroundInputTransport.classifyPointerHit(pid: snapshot.app.pid, at: point)
-    guard hit != .popupMenu else {
-        throw ProviderError.coded("background_unavailable", "a background click on a popup menu or web <select> opens the menu off screen or wedges the app's input; set the option with set-value on the popup element, or retry with --restore-window for a foreground click")
-    }
+    try requireBackgroundClickAllowed(hit)
     try withTransportErrors {
         try BackgroundInputTransport.click(
             backgroundTarget(snapshot),
@@ -1410,6 +1418,12 @@ private func clickPointer(
             flags: eventFlags(modifiers),
             hit: hit
         )
+    }
+}
+
+private func requireBackgroundClickAllowed(_ hit: BackgroundInputTransport.PointerHit) throws {
+    guard hit != .popupMenu else {
+        throw ProviderError.coded("background_unavailable", "a background click on a popup menu or web <select> opens the menu off screen or wedges the app's input; set the option with set-value on the popup element, or retry with --restore-window for a foreground click")
     }
 }
 
@@ -2748,10 +2762,15 @@ private enum Input {
         } ?? []
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        let changeCount = pasteboard.changeCount
         defer {
-            pasteboard.clearContents()
-            if !previousItems.isEmpty {
-                pasteboard.writeObjects(previousItems)
+            // Why: posting Cmd+V returns before the receiver reads the pasteboard.
+            usleep(200_000)
+            if pasteboard.changeCount == changeCount {
+                pasteboard.clearContents()
+                if !previousItems.isEmpty {
+                    pasteboard.writeObjects(previousItems)
+                }
             }
         }
         try body()
