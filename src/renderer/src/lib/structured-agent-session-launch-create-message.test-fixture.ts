@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { vi } from 'vitest'
+import { vi, type Mock } from 'vitest'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import type { AgentJournalSubmission } from '../../../shared/agent-session-journal-types'
 import type { AgentSessionHistoryPage } from '../../../shared/agent-session-wire'
@@ -11,7 +11,17 @@ import {
 
 import type { HostCreateSupport } from './structured-agent-session-host-admission'
 
-const mocks = vi.hoisted(() => {
+type CreateMessageFixtureMocks = {
+  call: Mock<(target: unknown, method: string, params: unknown) => Promise<unknown>>
+  supports: Mock<() => Promise<boolean>>
+  supportsMode: Mock<() => Promise<boolean>>
+  exactSupport: Mock<() => Promise<boolean>>
+  admit: Mock<() => Promise<HostCreateSupport>>
+  inventory: Mock
+  settings: Record<string, unknown>
+}
+
+const mocks: CreateMessageFixtureMocks = vi.hoisted(() => {
   const settings: Record<string, unknown> = {}
   return {
     call: vi.fn<(target: unknown, method: string, params: unknown) => Promise<unknown>>(),

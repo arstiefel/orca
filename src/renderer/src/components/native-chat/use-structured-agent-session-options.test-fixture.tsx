@@ -1,13 +1,31 @@
 // @vitest-environment happy-dom
 
 import { renderHook } from '@testing-library/react'
-import { vi } from 'vitest'
+import { vi, type Mock } from 'vitest'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type * as LaunchOptions from '@/lib/structured-agent-session-launch-options'
 import type * as HostCapability from '@/runtime/structured-agent-session-host-capability'
 import type { SelectionOutcome } from '../../../../shared/structured-agent-session-selection-operations'
 
-const mocks = vi.hoisted(() => {
+type OptionsFixtureMocks = {
+  call: Mock
+  enqueue: Mock
+  pick: Mock
+  target: RuntimeClientTarget
+  agent: 'codex' | 'claude'
+  hold: Mock<
+    (
+      sessionId: string,
+      id: string,
+      encoded: string,
+      picker?: unknown
+    ) => Promise<SelectionOutcome> | null
+  >
+  toastError: Mock<(message: string) => void>
+  coherentCatalog: boolean
+}
+
+const mocks: OptionsFixtureMocks = vi.hoisted(() => {
   const selection: { target: RuntimeClientTarget; agent: 'codex' | 'claude' } = {
     target: { kind: 'local' },
     agent: 'codex'

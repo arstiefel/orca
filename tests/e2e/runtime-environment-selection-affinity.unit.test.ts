@@ -1,23 +1,69 @@
-import { expect, vi } from 'vitest'
-import * as environmentStore from '../../../shared/runtime-environment-store'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import * as environmentStore from '../../src/shared/runtime-environment-store'
 import {
   RUNTIME_PROTOCOL_VERSION,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
-} from '../../../shared/protocol-version'
-import { callRuntimeEnvironment } from './runtime-environment-transport-routing'
+} from '../../src/shared/protocol-version'
+import { callRuntimeEnvironment } from '../../src/main/ipc/runtime-environments/runtime-environment-transport-routing'
 import {
   structuredSessionSelectionController,
   forgetStructuredSessionSelection,
   registerStructuredSelectionCatalogStore
-} from '../../../renderer/src/lib/structured-agent-session-selection-controller'
-import { replaceRuntimeEnvironmentRevisions } from '../../../renderer/src/runtime/runtime-environment-revision'
-import { callRuntimeRpc } from '../../../renderer/src/runtime/runtime-rpc-client'
+} from '@/lib/structured-agent-session-selection-controller'
+import { replaceRuntimeEnvironmentRevisions } from '@/runtime/runtime-environment-revision'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { resetRuntimeEnvironmentStatusOwners } from '../../src/main/ipc/runtime-environments/runtime-environment-request-connections'
+import { pairingCode } from '../../src/main/ipc/runtime-environments/runtime-environments-ipc-test-harness'
 
-export async function verifyDeferredSelectionAffinity(
-  userDataPath: string,
-  sendRemoteRuntimeRequestMock: ReturnType<typeof vi.fn>,
-  pairingCode: () => string
-): Promise<void> {
+const { sendRemoteRuntimeRequestMock, getPathMock } = vi.hoisted(() => ({
+  sendRemoteRuntimeRequestMock: vi.fn(),
+  getPathMock: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  BrowserWindow: { getAllWindows: () => [] },
+  app: { getPath: getPathMock },
+  ipcMain: { handle: vi.fn(), on: vi.fn(), removeHandler: vi.fn(), removeAllListeners: vi.fn() }
+}))
+vi.mock('../../src/shared/remote-runtime/remote-runtime-client', () => ({
+  sendRemoteRuntimeRequest: sendRemoteRuntimeRequestMock,
+  subscribeRemoteRuntimeRequest: vi.fn()
+}))
+vi.mock(
+  '../../src/main/ipc/runtime-environments/runtime-environment-request-connections',
+  async () => {
+    const { withRuntimeStatusOwners } =
+      await import('../../src/main/ipc/runtime-environments/runtime-environments-ipc-test-harness')
+    return withRuntimeStatusOwners({
+      sendRemoteRuntimeConnectionRequest: vi.fn(),
+      sendRemoteRuntimeSharedControlRequest: vi.fn(),
+      subscribeRemoteRuntimeSharedControlRequest: vi.fn(),
+      getRemoteRuntimeSharedControlDiagnostics: vi.fn(() => null),
+      reconnectRemoteRuntimeSharedControlConnection: vi.fn(),
+      retryRemoteRuntimeSharedControlConnectionsNow: vi.fn(),
+      ensureRemoteRuntimeSharedControlConnection: vi.fn(),
+      pauseRemoteRuntimeSharedControlRetry: vi.fn(),
+      closeRemoteRuntimeRequestConnection: vi.fn()
+    })
+  }
+)
+
+let userDataPath: string
+beforeEach(() => {
+  userDataPath = mkdtempSync(join(tmpdir(), 'orca-selection-affinity-'))
+  getPathMock.mockReturnValue(userDataPath)
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  resetRuntimeEnvironmentStatusOwners()
+  vi.unstubAllGlobals()
+  rmSync(userDataPath, { recursive: true, force: true })
+})
+
+it('fences deferred selection at the real queue and follows only proved pairing continuity, including late memory', async () => {
   const original = environmentStore.addEnvironmentFromPairingCode(userDataPath, {
     name: 'selection-owner',
     pairingCode: pairingCode(),
@@ -138,4 +184,4 @@ export async function verifyDeferredSelectionAffinity(
     replaceRuntimeEnvironmentRevisions([])
     restoreCatalog()
   }
-}
+})

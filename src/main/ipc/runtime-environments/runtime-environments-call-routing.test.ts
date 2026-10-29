@@ -79,7 +79,6 @@ vi.mock('./runtime-environment-request-connections', async () => {
 
 import { registerRuntimeEnvironmentHandlers } from './runtime-environments'
 import { channelHandlerLookup, pairingCode } from './runtime-environments-ipc-test-harness'
-import { verifyDeferredSelectionAffinity } from './runtime-environment-selection-affinity.test-fixture'
 
 const handler = channelHandlerLookup(handleMock)
 
@@ -123,10 +122,6 @@ describe('registerRuntimeEnvironmentHandlers', () => {
     resetRuntimeEnvironmentStatusOwners()
     vi.unstubAllGlobals()
     rmSync(userDataPath, { recursive: true, force: true })
-  })
-
-  it('fences deferred selection at the real queue and follows only proved pairing continuity, including late memory', async () => {
-    await verifyDeferredSelectionAffinity(userDataPath, sendRemoteRuntimeRequestMock, pairingCode)
   })
 
   it.each([false, true])(
