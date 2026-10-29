@@ -40,9 +40,18 @@ export type AcpCommandOptionsFixtureModule = {
 export type MobileCommandMenuHostFixtureModule = {
   createMobileCommandMenuHostFixture: (
     provider: 'claude' | 'omp',
-    holdPreparation?: boolean
+    holdPreparation?: boolean,
+    population?: number
   ) => Promise<{
     sessionId: string
+    sessionIds: readonly string[]
+    preparations: () => number
+    pending: (sessionId: string) => boolean
+    releasePreparation: () => void
+    request: (
+      sessionId: string,
+      clientCapabilities: readonly string[]
+    ) => Promise<AgentSessionCommandsResult>
     starts: () => number
     read: () => Promise<AgentSessionCommandsResult>
     subscribe: (emit: (event: AgentSessionSubscribeEvent) => void) => Promise<() => void>

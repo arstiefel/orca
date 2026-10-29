@@ -10,7 +10,11 @@ import {
   createQueuedMessageTestRig,
   QUEUED_RIG_CALLER
 } from './structured-agent-session-queued-message-rig.test-fixture'
-import { HOST_TEST_NOW, HOST_TEST_SESSION } from './structured-agent-session-host-test-data'
+import {
+  HOST_TEST_NOW,
+  HOST_TEST_SESSION,
+  hostTestOperationId
+} from './structured-agent-session-host-test-data'
 
 export { HOST_TEST_NOW as now }
 
@@ -59,7 +63,7 @@ export const createMobileQueuedEditHostFixture: MobileQueuedEditHostFixtureModul
   }
 
 export const createMobileCommandMenuHostFixture: MobileCommandMenuHostFixtureModule['createMobileCommandMenuHostFixture'] =
-  async (provider, holdPreparation = false) => {
+  async (provider, holdPreparation = false, population = 1) => {
     const { mkdtemp, mkdir, rm } = await import('node:fs/promises')
     const { tmpdir } = await import('node:os')
     const { join } = await import('node:path')
@@ -87,9 +91,13 @@ export const createMobileCommandMenuHostFixture: MobileCommandMenuHostFixtureMod
     const root = await mkdtemp(join(tmpdir(), 'orca-35069-phone-'))
     const cwd = join(root, 'workspace')
     await mkdir(cwd)
-    let starts = 0
+    const { clientRequestsCommands } =
+      await import('../../runtime/rpc/methods/structured-agent-session-policy')
+    let starts = 0,
+      preparations = 0
     const preparation = Promise.withResolvers<void>()
     const resolveWorkspacePath = async () => {
+      preparations++
       if (holdPreparation) {
         await preparation.promise
       }
@@ -134,32 +142,37 @@ export const createMobileCommandMenuHostFixture: MobileCommandMenuHostFixtureMod
         }))
     )
     const store = await openTestAgentSessionRecordStore(root)
-    const sessionId = 'phone-command-menu'
-    await store.reserveOwner({
-      sessionId,
-      provider,
-      accountHome: {
-        variable: provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'PI_CODING_AGENT_DIR',
-        path: root
-      },
-      location: {
-        executionHostId: 'local',
-        workspaceId: 'menu-folder',
-        workspaceKind: 'folder',
-        wslDistro: null
-      },
-      expectedFence: null,
-      spawnToken: 'spawn',
-      claimKeyId: 'key',
-      handoffOperationId: null,
-      probe: { outcome: 'reservation-unused' },
-      operation: {
-        callerKey: 'phone',
-        operationId: `${HOST_TEST_NOW}-00000000000000000000000000000001`,
-        fingerprint: 'menu'
-      },
-      now: HOST_TEST_NOW
-    })
+    const sessionIds = Array.from({ length: population }, (_, index) =>
+      index === 0 ? 'phone-command-menu' : `phone-command-menu-${index}`
+    )
+    const sessionId = sessionIds[0]!
+    for (const [index, sessionId] of sessionIds.entries()) {
+      await store.reserveOwner({
+        sessionId,
+        provider,
+        accountHome: {
+          variable: provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'PI_CODING_AGENT_DIR',
+          path: root
+        },
+        location: {
+          executionHostId: 'local',
+          workspaceId: index === 0 ? 'menu-folder' : `menu-folder-${index}`,
+          workspaceKind: 'folder',
+          wslDistro: null
+        },
+        expectedFence: null,
+        spawnToken: 'spawn',
+        claimKeyId: 'key',
+        handoffOperationId: null,
+        probe: { outcome: 'reservation-unused' },
+        operation: {
+          callerKey: 'phone',
+          operationId: hostTestOperationId(),
+          fingerprint: sessionId
+        },
+        now: HOST_TEST_NOW
+      })
+    }
     const host = new StructuredAgentSessionHost({
       agents,
       store,
@@ -172,6 +185,18 @@ export const createMobileCommandMenuHostFixture: MobileCommandMenuHostFixtureMod
     const unbind = bindAtRestCommandContexts([catalog])
     return {
       sessionId,
+      sessionIds,
+      preparations: () => preparations,
+      pending: (id) => catalog.snapshot(store.getRecord(id)!).commandsPending,
+      releasePreparation: () => {
+        holdPreparation = false
+        preparation.resolve()
+      },
+      request: (id, clientCapabilities) =>
+        host.readCommands(
+          id,
+          clientRequestsCommands({ clientCapabilities: [...clientCapabilities] })
+        ),
       starts: () => starts,
       read: () => host.readCommands(sessionId, true),
       subscribe: (emit) =>

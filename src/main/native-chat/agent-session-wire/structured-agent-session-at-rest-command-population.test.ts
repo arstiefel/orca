@@ -12,6 +12,9 @@ import {
   setCatalogAccount
 } from './structured-agent-session-at-rest-command-rig.test-fixture'
 
+import { createMobileCommandMenuHostFixture } from './mobile-queued-edit-host.test-fixture'
+import { AGENT_SESSION_COMMANDS_ON_REQUEST_CAPABILITY } from '../../../shared/structured-agent-session-surface-capabilities'
+
 import { PrioritySemaphore } from '../../../shared/priority-semaphore'
 import {
   commandDiscoveryRig,
@@ -360,8 +363,6 @@ it.each([
   'uses the phone CI host fixture with actual %s dispatch, pending preparation=%s and retirement',
   async (provider, pending) => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
-    const { createMobileCommandMenuHostFixture } =
-      await import('./mobile-queued-edit-host.test-fixture')
     const fixture = await createMobileCommandMenuHostFixture(provider, pending)
     const frames: AgentSessionSubscribeEvent[] = []
     const stop = await fixture.subscribe((event) => frames.push(event))
@@ -385,6 +386,38 @@ it.each([
       stop()
       await fixture.dispose()
       vi.useRealTimers()
+    }
+  }
+)
+
+it.each(['claude', 'omp'] as const)(
+  'keeps marked pre-report phone requests independent, sharing each %s context at N/10N',
+  async (provider) => {
+    for (const count of [3, 30]) {
+      const host = await createMobileCommandMenuHostFixture(provider, true, count)
+      try {
+        const reads = host.sessionIds.map((id) =>
+          host.request(id, [AGENT_SESSION_COMMANDS_ON_REQUEST_CAPABILITY])
+        )
+        const joined = host.request(host.sessionId, [AGENT_SESSION_COMMANDS_ON_REQUEST_CAPABILITY])
+        for (const id of host.sessionIds) {
+          expect(host.pending(id)).toBe(true)
+        }
+        await vi.waitFor(() => expect(host.preparations()).toBe(count))
+        expect(host.starts()).toBe(0)
+        host.releasePreparation()
+        const replies = await Promise.all([...reads, joined])
+        expect(replies.every((reply) => reply.commands?.some((row) => row.name === 'fast'))).toBe(
+          true
+        )
+        expect(host.starts()).toBe(count)
+        expect(host.preparations()).toBe(count)
+        for (const id of host.sessionIds) {
+          expect(host.pending(id)).toBe(false)
+        }
+      } finally {
+        await host.dispose()
+      }
     }
   }
 )
